@@ -1,0 +1,25 @@
+Research India's UPI-led fintech market and identify the top 3 investment opportunities for 2025-26.
+
+Focus on:
+- Market size and growth trajectory (FY2022-23 to FY2025-26), including UPI transaction volume and value
+- Key segments: payments, digital lending, insurtech, wealthtech
+- Key players: PhonePe, Google Pay, Paytm, CRED, Razorpay, Groww
+- Regulatory landscape: RBI digital lending guidelines, NPCI market-share cap, PPI rules
+- Notable funding rounds and IPOs
+- Barriers to entry and competitive dynamics (zero-MDR economics, bank-led apps)
+
+Deliverable: A structured 3-page report with recommendations ranked by ROI potential.
+
+---
+
+Other tasks to try:
+
+1. Analyse the Indian electric two-wheeler market. Compare Ola Electric, Ather Energy, TVS and Bajaj on market share, pricing and charging infrastructure, and explain how the FAME-II and PM E-DRIVE subsidies affect growth.
+
+2. Compare Blinkit, Zepto and Swiggy Instamart. Cover dark store economics, unit economics, funding rounds and the 3 biggest risks for investors in tier-1 Indian cities.
+
+3. Evaluate agritech opportunities in India for 2025. Cover Agri Stack, e-NAM, drone adoption and farmer-producer organisations, and name the top 3 startups to watch.
+
+4. Research India's solar manufacturing sector under the PLI scheme. Include 2030 capacity targets, major players such as Adani Solar, Tata Power and Waaree, and the effect of import duties.
+
+5. Assess India's digital health market under the Ayushman Bharat Digital Mission. Cover telemedicine players, ABHA adoption and data-privacy rules under the DPDP Act.
