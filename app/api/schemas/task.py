@@ -110,3 +110,31 @@ class ReportExportResponse(BaseModel):
     total_duration_ms: int | None
     created_at: datetime
     updated_at: datetime
+
+
+# ─── Review schema ────────────────────────────────────────────────────────────
+
+class ReviewSource(BaseModel):
+    title: str
+    url: str
+
+
+class ReviewCriticNote(BaseModel):
+    round: int
+    score: float | None
+    approved: bool | None
+    feedback: str
+
+
+class ReviewResponse(BaseModel):
+    """What a human reviewer needs to judge the pending analysis.
+
+    Built from a fixed allow-list of fields. Raw step output is never returned.
+    """
+    task_id: str
+    status: str
+    revision_count: int
+    analysis: str | None
+    critic_notes: list[ReviewCriticNote]
+    sources: list[ReviewSource]
+    human_feedback: str | None

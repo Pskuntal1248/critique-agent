@@ -14,6 +14,7 @@ import {
 import { StatusBadge } from '@/components/StatusBadge';
 import { TaskTimeline } from '@/components/TaskTimeline';
 import { ApprovalPanel } from '@/components/ApprovalPanel';
+import { ReviewDraft } from '@/components/ReviewDraft';
 import { AuditTabs } from '@/components/AuditTabs';
 import { ReportView } from '@/components/ReportView';
 import {
@@ -336,6 +337,8 @@ export function TaskDetailClient({ taskId }: Props) {
           </div>
         ))}
       </dl>
+
+      {task.status === 'awaiting_approval' && <ReviewDraft taskId={taskId} />}
 
       {task.status === 'awaiting_approval' && (
         <ApprovalPanel

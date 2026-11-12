@@ -99,6 +99,7 @@ async def _run_graph_async(task_id: str, original_task: str, human_in_loop: bool
     }
 
     step_number = 0
+    prev_cumulative_tokens = 0  # node outputs carry a running total; store per-step deltas
 
     try:
         input_or_command = initial_state
@@ -122,6 +123,11 @@ async def _run_graph_async(task_id: str, original_task: str, human_in_loop: bool
                     )
 
                     # Persist agent step record
+                    cumulative = node_output.get("tokens_used") if isinstance(node_output, dict) else None
+                    step_tokens = 0
+                    if isinstance(cumulative, int):
+                        step_tokens = max(0, cumulative - prev_cumulative_tokens)
+                        prev_cumulative_tokens = max(prev_cumulative_tokens, cumulative)
                     await _persist_step(
                         session_factory,
                         task_id=task_id,
@@ -129,6 +135,7 @@ async def _run_graph_async(task_id: str, original_task: str, human_in_loop: bool
                         step_number=step_number,
                         status=STEP_COMPLETED,
                         output_data=_safe_dict(node_output),
+                        tokens_override=step_tokens,
                     )
 
                     # Update task_run status
@@ -139,6 +146,8 @@ async def _run_graph_async(task_id: str, original_task: str, human_in_loop: bool
                         tokens_used=node_output.get("tokens_used", 0),
                         critic_score=node_output.get("critic_score"),
                         revision_count=node_output.get("revision_count"),
+                        prompt_tokens=node_output.get("prompt_tokens_used", 0),
+                        completion_tokens=node_output.get("completion_tokens_used", 0),
                     )
 
                     # Emit agent_complete after node finished
@@ -294,6 +303,7 @@ async def _persist_step(
     status: str,
     output_data: dict | None = None,
     error: str | None = None,
+    tokens_override: int | None = None,
 ) -> None:
     try:
         async with session_factory() as db:
@@ -307,7 +317,11 @@ async def _persist_step(
                         str(output_data.get("status", ""))[:200] if output_data else None
                     ),
                     output_data=output_data,
-                    tokens_used=output_data.get("tokens_used", 0) if output_data else 0,
+                    tokens_used=(
+                        tokens_override
+                        if tokens_override is not None
+                        else (output_data.get("tokens_used", 0) if output_data else 0)
+                    ),
                     error=error,
                 )
             )
@@ -323,8 +337,11 @@ async def _update_task_status(
     tokens_used: int = 0,
     critic_score: float | None = None,
     revision_count: int | None = None,
+    prompt_tokens: int = 0,
+    completion_tokens: int = 0,
 ) -> None:
-    if not status:
+    # Nodes such as increment_revision return no status; still persist their counters.
+    if not status and revision_count is None and critic_score is None:
         return
     try:
         async with session_factory() as db:
@@ -332,10 +349,15 @@ async def _update_task_status(
                 select(TaskRun).where(TaskRun.id == uuid.UUID(task_id))
             )
             if run:
-                run.status = status
+                if status:
+                    run.status = status
                 run.updated_at = datetime.now(UTC)
                 if tokens_used:
                     run.total_tokens = tokens_used
+                if prompt_tokens:
+                    run.total_prompt_tokens = prompt_tokens
+                if completion_tokens:
+                    run.total_completion_tokens = completion_tokens
                 if critic_score is not None:
                     run.critic_score = critic_score
                 if revision_count is not None:

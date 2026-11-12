@@ -102,6 +102,16 @@ export interface AgentStepResponse {
   created_at: string;
 }
 
+export interface ReviewResponse {
+  task_id: string;
+  status: string;
+  revision_count: number;
+  analysis: string | null;
+  critic_notes: { round: number; score: number | null; approved: boolean | null; feedback: string }[];
+  sources: { title: string; url: string }[];
+  human_feedback: string | null;
+}
+
 export interface ApproveRequest {
   decision: 'approve' | 'reject' | 'feedback';
   feedback?: string;
@@ -182,6 +192,9 @@ export const api = {
 
   getSteps: (taskId: string): Promise<AgentStepResponse[]> =>
     apiFetch<AgentStepResponse[]>(`/tasks/${taskId}/steps`),
+
+  getReview: (taskId: string): Promise<ReviewResponse> =>
+    apiFetch<ReviewResponse>(`/tasks/${taskId}/review`),
 
   reportJson: (taskId: string): Promise<TaskResponse> =>
     apiFetch<TaskResponse>(`/tasks/${taskId}/report.json`),

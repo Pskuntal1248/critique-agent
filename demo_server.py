@@ -86,16 +86,45 @@ _jobs = {}
 _owners = {}
 _job_started = {}
 
+_original_update = graph_worker._update_task_status
+async def update_byok(session_factory, task_id, *args, **kwargs):
+    """Record provider/model as soon as the run starts, not only at the end."""
+    await _original_update(session_factory, task_id, *args, **kwargs)
+    cred = _credentials.get()
+    if cred:
+        try:
+            import uuid
+            async with session_factory() as db:
+                run = await db.scalar(select(TaskRun).where(TaskRun.id == uuid.UUID(task_id)))
+                if run and (run.llm_provider != cred[0] or run.model_name != cred[1]):
+                    run.llm_provider, run.model_name = cred[0], cred[1]
+                    await db.commit()
+        except Exception:
+            pass
+graph_worker._update_task_status = update_byok
+
+async def _mark_stopped(task_id, message, event_message):
+    from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+    engine = create_async_engine(os.environ['DATABASE_URL'])
+    try:
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        await finalize_byok(factory, task_id=task_id, status='failed', error=message)
+        await emit_byok(factory, task_id, 'task_failed', None, {'task_id':task_id, 'error':event_message, 'is_final':True})
+    finally:
+        await engine.dispose()
+
 async def bounded_graph(task_id, original_task, human_in_loop):
+    failure = None
     try:
         await asyncio.wait_for(graph_worker._run_graph_async(task_id, original_task, human_in_loop), timeout=600)
     except asyncio.TimeoutError:
-        from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
-        engine = create_async_engine(os.environ['DATABASE_URL'])
-        factory = async_sessionmaker(engine, expire_on_commit=False)
-        await finalize_byok(factory, task_id=task_id, status='failed', error='Free demo stopped this task after 10 minutes.')
-        await emit_byok(factory, task_id, 'task_failed', None, {'task_id':task_id, 'error':'Demo time limit reached.', 'is_final':True})
-        await engine.dispose()
+        failure = ('Free demo stopped this task after 10 minutes. A run waiting for review counts toward this limit.', 'Demo time limit reached.')
+    except Exception:
+        # Do not keep the exception (and the frames that hold the client and key) alive:
+        # no traceback is logged or retained, and the task is marked failed.
+        failure = ('The run stopped unexpectedly.', 'The run stopped unexpectedly.')
+    if failure:
+        await _mark_stopped(task_id, *failure)
 
 class LocalQueue:
     def delay(self, task_id, original_task, human_in_loop):
