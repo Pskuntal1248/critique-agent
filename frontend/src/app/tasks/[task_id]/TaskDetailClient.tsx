@@ -384,4 +384,4 @@ export function TaskDetailClient({ taskId }: Props) {
       )}
     </div>
   );
-  }
+}
