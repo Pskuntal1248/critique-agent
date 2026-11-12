@@ -50,10 +50,10 @@ def demo_auth_owner(tok):
 
 def test_all():
     with TestClient(demo_server.app, base_url='https://testserver') as c:
-        assert c.get('/auth/config').json() == {'google': True, 'durable': False}
+        assert c.get('/auth/config').json() == {'google': True, 'external_database': False}
         os.environ['DATABASE_URL_BAK'] = os.environ['DATABASE_URL']
         os.environ['DATABASE_URL'] = 'postgresql+asyncpg://u:p@h/db'
-        assert c.get('/auth/config').json()['durable'] is True
+        assert c.get('/auth/config').json()['external_database'] is True
         os.environ['DATABASE_URL'] = os.environ.pop('DATABASE_URL_BAK')
         assert c.get('/auth/me').status_code == 401
         tok = token_of(login(c))
@@ -126,7 +126,7 @@ def test_all():
 def test_disabled_when_unconfigured():
     for k in ('GOOGLE_CLIENT_SECRET',): os.environ.pop(k)
     with TestClient(demo_server.app, base_url='https://testserver') as c:
-        assert c.get('/auth/config').json() == {'google': False, 'durable': False}
+        assert c.get('/auth/config').json() == {'google': False, 'external_database': False}
         assert c.get('/auth/google/login', follow_redirects=False).status_code == 503
         tok = demo_auth.TOKEN_PREFIX + 'x.y'
         assert start(c, tok).status_code == 400

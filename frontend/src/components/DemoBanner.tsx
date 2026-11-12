@@ -8,15 +8,15 @@ import { fetchAuthConfig, type AuthConfig } from '@/lib/api';
 export function DemoBanner() {
   const [cfg, setCfg] = useState<AuthConfig | null>(null);
   useEffect(() => { fetchAuthConfig().then(setCfg); }, []);
-  const durable = cfg?.durable === true;
+  const external = cfg?.external_database === true;
   return (
     <aside className="max-w-6xl mx-auto px-6 pt-4 text-sm text-muted">
       Public BYOK demo. <Link href="/settings" className="underline font-medium">Settings: choose your provider, model and API key</Link>.
       {' '}Your provider may charge for calls.
-      {' '}{durable
+      {' '}{external
         ? cfg?.google
-          ? 'Runs are stored in the server database. Sign in to keep access to them.'
-          : 'Runs are stored in the server database, but without an account only this browser tab can open them.'
+          ? 'An external database is configured. Sign in to keep access to your runs.'
+          : 'An external database is configured, but without an account only this browser tab can open your runs.'
         : 'Session data resets when the server restarts.'}
       {' '}Adapted from AgentForge.
     </aside>

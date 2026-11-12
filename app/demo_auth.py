@@ -37,8 +37,10 @@ def enabled() -> bool:
         "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "AUTH_SECRET", "PUBLIC_BACKEND_URL", "FRONTEND_URL"))
 
 
-def storage_is_durable() -> bool:
-    """True only when the database is not a local SQLite file (which Render Free wipes)."""
+def has_external_database() -> bool:
+    """True when DATABASE_URL is not a local SQLite file (which Render Free wipes).
+
+    This reports configuration only. It does not prove the provider keeps the data."""
     return not _env("DATABASE_URL").startswith("sqlite")
 
 
@@ -193,7 +195,7 @@ async def _upsert_user(sub: str, email: str, name: str | None) -> None:
 
 @router.get("/config")
 async def auth_config():
-    return {"google": enabled(), "durable": storage_is_durable()}
+    return {"google": enabled(), "external_database": has_external_database()}
 
 
 @router.get("/google/login")
