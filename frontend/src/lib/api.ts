@@ -7,6 +7,24 @@ const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY ?? '';
 
+export const DEMO_API = API_BASE;
+export interface ByokSettings { provider: string; model: string; key: string; }
+export function loadSettings(): ByokSettings {
+  if (typeof window === 'undefined') return { provider: 'openrouter', model: '', key: '' };
+  try { return JSON.parse(sessionStorage.getItem('critique.byok') || 'null') || {provider: 'openrouter', model: '', key: ''}; }
+  catch { return {provider: 'openrouter', model: '', key: ''}; }
+}
+export function saveSettings(settings: ByokSettings) { sessionStorage.setItem('critique.byok', JSON.stringify(settings)); }
+export function demoSession(): string {
+  let id = sessionStorage.getItem('critique.session');
+  if (!id) { id = crypto.randomUUID(); sessionStorage.setItem('critique.session', id); }
+  return id;
+}
+function byokHeaders(): Record<string, string> {
+  const s = loadSettings();
+  return {'X-LLM-Provider': s.provider, 'X-LLM-Model': s.model, 'X-LLM-Key': s.key};
+}
+
 // ─── Response types ───────────────────────────────────────────────────────────
 
 export interface HealthResponse {
@@ -97,7 +115,7 @@ export interface CancelResponse {
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
 function buildHeaders(extra?: Record<string, string>): Record<string, string> {
-  const h: Record<string, string> = { 'Content-Type': 'application/json' };
+  const h: Record<string, string> = { 'Content-Type': 'application/json', 'X-Demo-Session': demoSession() };
   if (API_KEY) h['X-API-Key'] = API_KEY;
   return { ...h, ...(extra ?? {}) };
 }
@@ -141,6 +159,7 @@ export const api = {
     apiFetch<TaskResponse>('/tasks', {
       method: 'POST',
       body: JSON.stringify(body),
+      headers: byokHeaders(),
     }),
 
   listTasks: (limit = 8): Promise<TaskSummary[]> =>
@@ -242,7 +261,8 @@ export function streamTask(
 ): () => void {
   const base = `${API_BASE}/tasks/${taskId}/stream`;
   const url = API_KEY ? `${base}?api_key=${encodeURIComponent(API_KEY)}` : base;
-  const es = new EventSource(url);
+  const sessionUrl = `${url}${url.includes('?') ? '&' : '?'}session=${encodeURIComponent(demoSession())}`;
+  const es = new EventSource(sessionUrl);
 
   const makeHandler =
     (type: string) =>
