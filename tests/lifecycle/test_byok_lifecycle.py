@@ -139,3 +139,32 @@ def test_review_wait_counts_toward_cap_and_never_auto_approves(client, monkeypat
 
 
 _REAL_RUN = demo_server.graph_worker._run_graph_async
+
+
+def test_cancel_stops_further_model_calls(client, monkeypatch):
+    """Cancel through the real API while the real worker is mid-run: model calls must stop."""
+    import threading, time
+    from tests.test_pipeline_integration import ScriptedLLM
+    calls = []
+    class Slow(ScriptedLLM):
+        def invoke(self, messages):
+            calls.append(time.monotonic()); time.sleep(0.4)
+            return super().invoke(messages)
+    monkeypatch.setattr(langchain_openai, 'ChatOpenAI', lambda **kw: Slow())
+    ScriptedLLM.critic_calls = 0; ScriptedLLM.critic_fail = False
+    monkeypatch.setattr(demo_server.graph_worker, '_run_graph_async', _REAL_RUN)
+    r = client.post('/tasks', json={'task': 'Compare two sample tools', 'human_in_loop': False}, headers={
+        'x-llm-provider': 'openai', 'x-llm-model': 'm', 'x-llm-key': SENTINEL, 'x-demo-session': 's1'})
+    tid = r.json()['task_id']
+    time.sleep(1.0)
+    assert calls, 'run never started calling the model'
+    c = client.post(f'/tasks/{tid}/cancel', headers={'x-demo-session': 's1'})
+    assert c.status_code == 200 and c.json()['status'] == 'cancelled'
+    time.sleep(1.0)  # let any call already in flight finish
+    n = len(calls)
+    time.sleep(3.0)
+    assert len(calls) == n, 'model calls continued after cancel'
+    assert _status(client, tid)['status'] == 'cancelled'
+    assert alive() == [] and not demo_server._jobs
+    # another session cannot cancel it
+    assert client.post(f'/tasks/{tid}/cancel', headers={'x-demo-session': 'other'}).status_code == 404

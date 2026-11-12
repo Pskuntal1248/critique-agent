@@ -373,8 +373,10 @@ export function TaskDetailClient({ taskId }: Props) {
       )}
 
       {task.error && (
-        <section className="border-l-4 border-bad px-4 py-3">
-          <h3 className="text-sm font-bold text-bad mb-1.5">Pipeline error</h3>
+        <section className={`border-l-4 px-4 py-3 ${task.status === 'cancelled' ? 'border-line' : 'border-bad'}`}>
+          <h3 className={`text-sm font-bold mb-1.5 ${task.status === 'cancelled' ? 'text-ink' : 'text-bad'}`}>
+            {task.status === 'cancelled' ? 'Run stopped' : 'Pipeline error'}
+          </h3>
           <pre className="text-xs text-ink font-mono whitespace-pre-wrap break-all">
             {task.error}
           </pre>
