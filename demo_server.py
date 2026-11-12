@@ -128,9 +128,43 @@ async def bounded_graph(task_id, original_task, human_in_loop):
     if failure:
         await _mark_stopped(task_id, *failure)
 
+async def _persist_owner(task_id, owner):
+    import uuid
+    from app.models.database import AsyncSessionLocal
+    for _ in range(20):
+        async with AsyncSessionLocal() as db:
+            run = await db.scalar(select(TaskRun).where(TaskRun.id == uuid.UUID(task_id)))
+            if run:
+                run.owner = owner
+                await db.commit()
+                return
+        await asyncio.sleep(0.25)
+
+async def _owner_of(task_id):
+    """Memory first, then the database, so runs survive restarts when the database does."""
+    if task_id in _owners:
+        return _owners[task_id]
+    import uuid
+    from app.models.database import AsyncSessionLocal
+    try:
+        async with AsyncSessionLocal() as db:
+            run = await db.scalar(select(TaskRun).where(TaskRun.id == uuid.UUID(task_id)))
+    except Exception:
+        return None
+    if run and run.owner:
+        _owners[task_id] = run.owner
+        return run.owner
+    return None
+
+async def _owned_ids(owner):
+    from app.models.database import AsyncSessionLocal
+    async with AsyncSessionLocal() as db:
+        return {str(i) for i in await db.scalars(select(TaskRun.id).where(TaskRun.owner == owner))}
+
 class LocalQueue:
     def delay(self, task_id, original_task, human_in_loop):
-        _owners[task_id] = _credentials.get()[3]
+        _owners[task_id] = demo_auth.owner_for(_credentials.get()[3])
+        asyncio.ensure_future(_persist_owner(task_id, _owners[task_id]))
         job = asyncio.create_task(bounded_graph(task_id, original_task, human_in_loop))
         _jobs[task_id] = job
         _job_started[task_id] = time.monotonic()
@@ -148,7 +182,7 @@ graph_worker.celery_app.control.revoke = revoke
 async def sqlite_metrics(db, hours=24):
     since = datetime.now(UTC) - timedelta(hours=hours)
     import uuid
-    ids = [uuid.UUID(k) for k, v in _owners.items() if v == _visitor.get()]
+    ids = [uuid.UUID(k) for k in await _owned_ids(_visitor.get())]
     runs = list(await db.scalars(select(TaskRun).where(TaskRun.created_at >= since, TaskRun.id.in_(ids))))
     steps = list(await db.scalars(select(AgentStep).where(AgentStep.created_at >= since, AgentStep.task_id.in_(ids))))
     durations = sorted(r.total_duration_ms or 0 for r in runs)
@@ -168,6 +202,9 @@ async def sqlite_metrics(db, hours=24):
 metrics_service.get_metrics = sqlite_metrics
 
 from app.main import app
+from app.models import user as _user_model  # noqa: F401  registers the users table
+from app import demo_auth
+app.include_router(demo_auth.router)
 original_lifespan = app.router.lifespan_context
 
 @asynccontextmanager
@@ -186,17 +223,18 @@ async def demo_limits(request: Request, call_next):
     if request.method == 'OPTIONS':
         return await call_next(request)
     session = request.headers.get('x-demo-session') or request.query_params.get('session')
+    owner = demo_auth.owner_for(session)
     task_id = request.url.path.split('/')[2] if request.url.path.startswith('/tasks/') else None
-    if task_id and (not session or _owners.get(task_id) != session):
+    if task_id and (not owner or await _owner_of(task_id) != owner):
         return JSONResponse({'detail': 'Task not found in this browser session.'}, status_code=404)
     cred_token = None
     if request.method == 'POST' and request.url.path == '/tasks':
         provider = request.headers.get('x-llm-provider', '')
         model = request.headers.get('x-llm-model', '')
         key = request.headers.get('x-llm-key', '')
-        if provider not in {*_provider_urls, 'anthropic'} or not model or not key or not session:
+        if provider not in {*_provider_urls, 'anthropic'} or not model or not key or not owner:
             return JSONResponse({'detail': 'Configure provider, model and API key in Settings first.'}, status_code=400)
-        if len(key)>4096 or len(model)>200 or len(session)>100:
+        if len(key)>4096 or len(model)>200 or len(session)>600:
             return JSONResponse({'detail': 'Invalid settings.'}, status_code=400)
         now = time.monotonic()
         _recent_starts[:] = [t for t in _recent_starts if now-t < 3600]
@@ -205,7 +243,7 @@ async def demo_limits(request: Request, call_next):
         _recent_starts.append(now)
         cred_token = _credentials.set((provider, model, key, session))
     try:
-        visitor_token = _visitor.set(session)
+        visitor_token = _visitor.set(owner)
         response = await call_next(request)
         _visitor.reset(visitor_token)
         # List and aggregate endpoints only expose this visitor's runs.
@@ -214,7 +252,8 @@ async def demo_limits(request: Request, call_next):
             body = b''.join([chunk async for chunk in response.body_iterator])
             data = json.loads(body)
             if isinstance(data, list):
-                return JSONResponse([r for r in data if _owners.get(r['task_id']) == session])
+                mine = await _owned_ids(owner) if owner else set()
+                return JSONResponse([r for r in data if r['task_id'] in mine])
         return response
     finally:
         if cred_token is not None:

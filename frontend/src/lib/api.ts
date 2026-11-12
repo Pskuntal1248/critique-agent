@@ -15,7 +15,35 @@ export function loadSettings(): ByokSettings {
   catch { return {provider: 'openrouter', model: '', key: ''}; }
 }
 export function saveSettings(settings: ByokSettings) { sessionStorage.setItem('critique.byok', JSON.stringify(settings)); }
+export interface AuthUser { email: string; name?: string | null; }
+const AUTH_KEY = 'critique.auth';
+export function getAuthToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(AUTH_KEY);
+}
+export function setAuthToken(token: string | null) {
+  if (token) localStorage.setItem(AUTH_KEY, token); else localStorage.removeItem(AUTH_KEY);
+}
+export async function fetchAuthConfig(): Promise<{ google: boolean }> {
+  try {
+    const r = await fetch(`${API_BASE}/auth/config`);
+    return r.ok ? await r.json() : { google: false };
+  } catch { return { google: false }; }
+}
+export async function fetchMe(): Promise<AuthUser | null> {
+  const t = getAuthToken();
+  if (!t) return null;
+  try {
+    const r = await fetch(`${API_BASE}/auth/me`, { headers: { 'X-Demo-Session': t } });
+    if (r.status === 401) { setAuthToken(null); return null; }
+    return r.ok ? await r.json() : null;
+  } catch { return null; }
+}
+export const GOOGLE_LOGIN_URL = `${API_BASE}/auth/google/login`;
+/** Signed-in token when present, otherwise this tab's anonymous session id. */
 export function demoSession(): string {
+  const token = getAuthToken();
+  if (token) return token;
   let id = sessionStorage.getItem('critique.session');
   if (!id) { id = crypto.randomUUID(); sessionStorage.setItem('critique.session', id); }
   return id;

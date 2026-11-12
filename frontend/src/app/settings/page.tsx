@@ -1,14 +1,18 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ByokSettings, DEMO_API, loadSettings, saveSettings } from '@/lib/api';
+import { ByokSettings, DEMO_API, fetchAuthConfig, fetchMe, GOOGLE_LOGIN_URL, loadSettings, saveSettings } from '@/lib/api';
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<ByokSettings>({provider: 'openrouter', model: '', key: ''});
   const [models, setModels] = useState<string[]>([]);
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
+  const [acct, setAcct] = useState<'loading' | 'off' | 'out' | string>('loading');
   useEffect(() => { setSettings(loadSettings()); }, []);
+  useEffect(() => {
+    Promise.all([fetchAuthConfig(), fetchMe()]).then(([c, me]) => setAcct(me ? me.email : c.google ? 'out' : 'off'));
+  }, []);
   async function fetchModels() {
     setBusy(true); setStatus('Contacting your provider. The free backend may take a minute to wake up.');
     try {
@@ -25,6 +29,13 @@ export default function SettingsPage() {
     <div className="border border-line p-4 text-sm space-y-2">
       <p>Your key is kept in this tab&apos;s session storage, not in the server environment or database. It is sent over HTTPS to this app&apos;s backend for model lookup and research, held only in task memory, and forwarded only to your selected provider.</p>
       <p>Closing the tab clears the saved key. Do not use a shared computer. Your provider may charge for calls; use its budget controls or a free model. Do not enter private or confidential research.</p>
+    </div>
+    <div className="border border-line p-4 text-sm space-y-2">
+      <p className="font-medium">Account</p>
+      {acct === 'loading' && <p className="text-muted">Checking account support...</p>}
+      {acct === 'off' && <p>Accounts are not set up on this deployment. Reports are kept for this browser session only and are lost when the server restarts. Use Download .md or .json on a finished report to keep it.</p>}
+      {acct === 'out' && <p>Not signed in. <a className="underline" href={GOOGLE_LOGIN_URL}>Sign in with Google</a> to keep your reports across sessions. Your provider key stays in this tab either way.</p>}
+      {!['loading','off','out'].includes(acct) && <p>Signed in as {acct}. Your reports are saved to your account. Your provider key is not saved to it.</p>}
     </div>
     <label className="block space-y-2"><span>Provider</span><select className={field} value={settings.provider} onChange={e=>{setSettings({...settings, provider:e.target.value, model:''});setModels([]);}}>
       <option value="openrouter">OpenRouter</option><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="gemini">Google Gemini</option><option value="groq">Groq</option>
