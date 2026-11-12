@@ -46,7 +46,7 @@ def byok_llm(temperature=0.3):
     cred = _credentials.get()
     if not cred:
         raise ValueError('Configure your provider and API key in Settings.')
-    provider, model, key, session = cred
+    provider, model, key, session, _owner = cred
     if provider == 'anthropic':
         from langchain_anthropic import ChatAnthropic
         return PrivateModel(ChatAnthropic(model=model, api_key=key, temperature=temperature,
@@ -163,7 +163,7 @@ async def _owned_ids(owner):
 
 class LocalQueue:
     def delay(self, task_id, original_task, human_in_loop):
-        _owners[task_id] = demo_auth.owner_for(_credentials.get()[3])
+        _owners[task_id] = _credentials.get()[4]
         asyncio.ensure_future(_persist_owner(task_id, _owners[task_id]))
         job = asyncio.create_task(bounded_graph(task_id, original_task, human_in_loop))
         _jobs[task_id] = job
@@ -216,14 +216,41 @@ async def demo_lifespan(application):
         job.cancel()
 app.router.lifespan_context = demo_lifespan
 
+_tickets = {}
+TICKET_SECONDS = 120
+
+def _redeem_ticket(ticket, path):
+    """Short-lived, task-bound stand-in for the bearer token on EventSource URLs."""
+    now = time.monotonic()
+    for k in [k for k, v in _tickets.items() if v[2] < now]:
+        _tickets.pop(k, None)
+    entry = _tickets.get(ticket)
+    if entry and path == f'/tasks/{entry[0]}/stream':
+        return entry[1]
+    return None
+
+@app.post('/tasks/{task_id}/stream-ticket')
+async def stream_ticket(task_id: str):
+    # The middleware has already checked that the caller owns this task.
+    import secrets
+    owner = _visitor.get()
+    ticket = secrets.token_urlsafe(24)
+    _tickets[ticket] = (task_id, owner, time.monotonic() + TICKET_SECONDS)
+    return {'ticket': ticket, 'expires_in': TICKET_SECONDS}
+
 _recent_starts = []
 @app.middleware('http')
 async def demo_limits(request: Request, call_next):
     from starlette.responses import JSONResponse
     if request.method == 'OPTIONS':
         return await call_next(request)
-    session = request.headers.get('x-demo-session') or request.query_params.get('session')
-    owner = demo_auth.owner_for(session)
+    ticket = request.query_params.get('ticket')
+    if ticket:
+        owner = _redeem_ticket(ticket, request.url.path)
+        session = None
+    else:
+        owner = await demo_auth.owner_for(request.headers.get('x-demo-session'))
+        session = request.headers.get('x-demo-session')
     task_id = request.url.path.split('/')[2] if request.url.path.startswith('/tasks/') else None
     if task_id and (not owner or await _owner_of(task_id) != owner):
         return JSONResponse({'detail': 'Task not found in this browser session.'}, status_code=404)
@@ -234,14 +261,14 @@ async def demo_limits(request: Request, call_next):
         key = request.headers.get('x-llm-key', '')
         if provider not in {*_provider_urls, 'anthropic'} or not model or not key or not owner:
             return JSONResponse({'detail': 'Configure provider, model and API key in Settings first.'}, status_code=400)
-        if len(key)>4096 or len(model)>200 or len(session)>600:
+        if len(key)>4096 or len(model)>200 or len(session or '')>600:
             return JSONResponse({'detail': 'Invalid settings.'}, status_code=400)
         now = time.monotonic()
         _recent_starts[:] = [t for t in _recent_starts if now-t < 3600]
         if len(_jobs)>=3 or len(_recent_starts)>=30:
             return JSONResponse({'detail': 'Free demo is busy. Please try again later.'}, status_code=429)
         _recent_starts.append(now)
-        cred_token = _credentials.set((provider, model, key, session))
+        cred_token = _credentials.set((provider, model, key, session, owner))
     try:
         visitor_token = _visitor.set(owner)
         response = await call_next(request)

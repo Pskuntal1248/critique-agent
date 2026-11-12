@@ -24,11 +24,24 @@ export function getAuthToken(): string | null {
 export function setAuthToken(token: string | null) {
   if (token) localStorage.setItem(AUTH_KEY, token); else localStorage.removeItem(AUTH_KEY);
 }
-export async function fetchAuthConfig(): Promise<{ google: boolean }> {
+export interface AuthConfig { google: boolean; durable: boolean; }
+export async function fetchAuthConfig(): Promise<AuthConfig> {
   try {
     const r = await fetch(`${API_BASE}/auth/config`);
-    return r.ok ? await r.json() : { google: false };
-  } catch { return { google: false }; }
+    return r.ok ? await r.json() : { google: false, durable: false };
+  } catch { return { google: false, durable: false }; }
+}
+/** Revoke the login on the server, then forget it here. */
+export async function signOut(everywhere = false): Promise<void> {
+  const t = getAuthToken();
+  if (t) {
+    try {
+      await fetch(`${API_BASE}/auth/logout${everywhere ? '?everywhere=true' : ''}`, {
+        method: 'POST', headers: { 'X-Demo-Session': t },
+      });
+    } catch { /* the server may be asleep; the token is still dropped locally and expires in 7 days */ }
+  }
+  setAuthToken(null);
 }
 export async function fetchMe(): Promise<AuthUser | null> {
   const t = getAuthToken();
@@ -301,10 +314,21 @@ export function streamTask(
   onDone: () => void,
 ): () => void {
   const base = `${API_BASE}/tasks/${taskId}/stream`;
-  const url = API_KEY ? `${base}?api_key=${encodeURIComponent(API_KEY)}` : base;
-  const sessionUrl = `${url}${url.includes('?') ? '&' : '?'}session=${encodeURIComponent(demoSession())}`;
-  const es = new EventSource(sessionUrl);
+  let es: EventSource | null = null;
+  let closed = false;
+  // EventSource cannot send headers. Trade the login for a 2-minute, task-bound ticket
+  // so the long-lived token never appears in a URL.
+  fetch(`${API_BASE}/tasks/${taskId}/stream-ticket`, { method: 'POST', headers: { 'X-Demo-Session': demoSession() } })
+    .then((r) => (r.ok ? r.json() : Promise.reject(new Error('ticket'))))
+    .then((t: { ticket: string }) => {
+      if (closed) return;
+      const withKey = API_KEY ? `${base}?api_key=${encodeURIComponent(API_KEY)}&` : `${base}?`;
+      open(new EventSource(`${withKey}ticket=${encodeURIComponent(t.ticket)}`));
+    })
+    .catch(() => { if (!closed) onDone(); });
 
+  function open(source: EventSource) {
+    es = source;
   const makeHandler =
     (type: string) =>
     (e: MessageEvent<string>) => {
@@ -316,19 +340,20 @@ export function streamTask(
       }
       onEvent({ type, data: parsed });
       if (FINAL_STREAM_EVENTS.has(type)) {
-        es.close();
+        source.close();
         onDone();
       }
     };
 
   for (const eventType of STREAM_EVENT_TYPES) {
-    es.addEventListener(eventType, makeHandler(eventType));
+    source.addEventListener(eventType, makeHandler(eventType));
   }
 
-  es.onerror = () => {
-    es.close();
+  source.onerror = () => {
+    source.close();
     onDone();
   };
+  }
 
-  return () => es.close();
+  return () => { closed = true; es?.close(); };
 }

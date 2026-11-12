@@ -22,7 +22,7 @@ from fastapi.responses import RedirectResponse
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 TOKEN_PREFIX = "ca1."
-TOKEN_TTL = 30 * 24 * 3600
+TOKEN_TTL = 7 * 24 * 3600
 STATE_TTL = 600
 GOOGLE_AUTH = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN = "https://oauth2.googleapis.com/token"
@@ -35,6 +35,11 @@ def _env(name: str) -> str:
 def enabled() -> bool:
     return all(_env(n) for n in (
         "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "AUTH_SECRET", "PUBLIC_BACKEND_URL", "FRONTEND_URL"))
+
+
+def storage_is_durable() -> bool:
+    """True only when the database is not a local SQLite file (which Render Free wipes)."""
+    return not _env("DATABASE_URL").startswith("sqlite")
 
 
 def redirect_uri() -> str:
@@ -69,29 +74,76 @@ def _unsign(blob: str) -> dict | None:
         return None
 
 
-def make_session_token(sub: str, email: str, name: str | None) -> str:
-    return TOKEN_PREFIX + _sign({"k": "s", "sub": sub, "email": email, "name": name,
-                                 "exp": int(time.time()) + TOKEN_TTL})
+def _hash(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
 
 
-def identity_from_token(value: str | None) -> dict | None:
-    """Return {sub,email,name} for a valid signed session token, else None."""
-    if not value or not value.startswith(TOKEN_PREFIX) or not enabled():
+async def make_session_token(sub: str) -> str:
+    """Create a server-side session and return its opaque bearer token (shown once)."""
+    from datetime import UTC, datetime, timedelta
+
+    from app.models.database import AsyncSessionLocal
+    from app.models.user import AuthSession
+    token = TOKEN_PREFIX + secrets.token_urlsafe(32)
+    async with AsyncSessionLocal() as db:
+        db.add(AuthSession(token_hash=_hash(token), user_id=sub,
+                           expires_at=datetime.now(UTC) + timedelta(seconds=TOKEN_TTL)))
+        await db.commit()
+    return token
+
+
+async def identity_from_token(value: str | None) -> dict | None:
+    """Return {sub,email,name} for a live (unexpired, unrevoked) session token, else None."""
+    if not value or not value.startswith(TOKEN_PREFIX) or not enabled() or len(value) > 200:
         return None
-    data = _unsign(value[len(TOKEN_PREFIX):])
-    if not data or data.get("k") != "s" or not data.get("sub"):
+    from datetime import UTC, datetime
+
+    from sqlalchemy import select
+
+    from app.models.database import AsyncSessionLocal
+    from app.models.user import AuthSession, User
+    try:
+        async with AsyncSessionLocal() as db:
+            row = await db.get(AuthSession, _hash(value))
+            if row is None or row.revoked_at is not None:
+                return None
+            exp = row.expires_at if row.expires_at.tzinfo else row.expires_at.replace(tzinfo=UTC)
+            if exp < datetime.now(UTC):
+                return None
+            u = await db.scalar(select(User).where(User.id == row.user_id))
+            if u is None:
+                return None
+            return {"sub": u.id, "email": u.email, "name": u.name}
+    except Exception:
         return None
-    return data
 
 
-def owner_for(value: str | None) -> str | None:
-    """Owner key for an anonymous session id or a signed token. Forged tokens get no owner."""
+async def owner_for(value: str | None) -> str | None:
+    """Owner key for an anonymous session id or a live login token. Unknown tokens get no owner."""
     if not value:
         return None
     if value.startswith(TOKEN_PREFIX):
-        ident = identity_from_token(value)
+        ident = await identity_from_token(value)
         return f"user:{ident['sub']}" if ident else None
     return value
+
+
+async def revoke(value: str | None, everywhere: bool = False) -> bool:
+    from datetime import UTC, datetime
+
+    from sqlalchemy import update
+
+    from app.models.database import AsyncSessionLocal
+    from app.models.user import AuthSession
+    ident = await identity_from_token(value)
+    if not ident:
+        return False
+    cond = AuthSession.user_id == ident["sub"] if everywhere else AuthSession.token_hash == _hash(value)
+    async with AsyncSessionLocal() as db:
+        await db.execute(update(AuthSession).where(cond, AuthSession.revoked_at.is_(None))
+                         .values(revoked_at=datetime.now(UTC)))
+        await db.commit()
+    return True
 
 
 async def exchange_code(code: str) -> dict:
@@ -141,7 +193,7 @@ async def _upsert_user(sub: str, email: str, name: str | None) -> None:
 
 @router.get("/config")
 async def auth_config():
-    return {"google": enabled()}
+    return {"google": enabled(), "durable": storage_is_durable()}
 
 
 @router.get("/google/login")
@@ -174,7 +226,7 @@ async def google_callback(request: Request, code: str = "", state: str = "", err
     claims = await exchange_code(code)
     _check_claims(claims)
     await _upsert_user(claims["sub"], claims["email"], claims.get("name"))
-    token = make_session_token(claims["sub"], claims["email"], claims.get("name"))
+    token = await make_session_token(claims["sub"])
     resp = RedirectResponse(f"{front}/auth/callback#token={token}", status_code=302)
     resp.delete_cookie("oauth_nonce", path="/auth/google")
     return resp
@@ -183,7 +235,16 @@ async def google_callback(request: Request, code: str = "", state: str = "", err
 @router.get("/me")
 async def me(request: Request):
     v = request.headers.get("x-demo-session")
-    ident = identity_from_token(v)
+    ident = await identity_from_token(v)
     if not ident:
         raise HTTPException(401, "Not signed in.")
     return {"email": ident["email"], "name": ident.get("name")}
+
+
+@router.post("/logout")
+async def logout(request: Request, everywhere: bool = False):
+    """Revoke this login (or every login of this account) on the server."""
+    ok = await revoke(request.headers.get("x-demo-session"), everywhere)
+    if not ok:
+        raise HTTPException(401, "Not signed in.")
+    return {"ok": True}

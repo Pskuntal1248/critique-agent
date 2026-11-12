@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { fetchAuthConfig, fetchMe, GOOGLE_LOGIN_URL, setAuthToken, type AuthUser } from '@/lib/api';
+import { fetchAuthConfig, fetchMe, GOOGLE_LOGIN_URL, signOut, type AuthUser } from '@/lib/api';
 
 const API_DOCS_URL = `${process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000'}/docs`;
 
@@ -44,7 +44,7 @@ export function Navbar() {
               <button
                 type="button"
                 className="hover:text-ink underline"
-                onClick={() => { setAuthToken(null); window.location.href = '/'; }}
+                onClick={() => { signOut().then(() => { window.location.href = '/'; }); }}
               >
                 Sign out
               </button>

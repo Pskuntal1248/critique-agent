@@ -44,20 +44,48 @@ def start(client, who):
     return client.post('/tasks', json={'task': 'Compare two sample tools for a small team', 'human_in_loop': False},
         headers={'x-llm-provider': 'openai', 'x-llm-model': 'm', 'x-llm-key': 'sk-x', 'x-demo-session': who})
 
+def demo_auth_owner(tok):
+    import asyncio
+    return asyncio.run(demo_auth.owner_for(tok))
+
 def test_all():
     with TestClient(demo_server.app, base_url='https://testserver') as c:
-        assert c.get('/auth/config').json() == {'google': True}
+        assert c.get('/auth/config').json() == {'google': True, 'durable': False}
+        os.environ['DATABASE_URL_BAK'] = os.environ['DATABASE_URL']
+        os.environ['DATABASE_URL'] = 'postgresql+asyncpg://u:p@h/db'
+        assert c.get('/auth/config').json()['durable'] is True
+        os.environ['DATABASE_URL'] = os.environ.pop('DATABASE_URL_BAK')
         assert c.get('/auth/me').status_code == 401
         tok = token_of(login(c))
         c.cookies.clear()
         assert c.get('/auth/me', headers={'x-demo-session': tok}).json() == {'email': 'a@example.com', 'name': 'Ann'}
-        # forged / tampered / expired tokens are rejected
+        # forged / tampered / unknown tokens are rejected
         assert c.get('/auth/me', headers={'x-demo-session': tok[:-3] + 'abc'}).status_code == 401
         assert c.get('/auth/me', headers={'x-demo-session': 'ca1.e30.e30'}).status_code == 401
-        old = demo_auth.make_session_token('g-1', 'a@example.com', 'Ann')
-        real = time.time; demo_auth.time.time = lambda: real() + 31*24*3600
-        assert c.get('/auth/me', headers={'x-demo-session': old}).status_code == 401
-        demo_auth.time.time = real
+        assert c.get('/auth/me', headers={'x-demo-session': 'ca1.' + 'A' * 300}).status_code == 401
+        # only a hash is stored, never the token itself
+        import sqlite3
+        db = sqlite3.connect(os.environ['DATABASE_URL'].split('///')[1])
+        assert db.execute("select count(*) from auth_sessions where token_hash = ?", (tok,)).fetchone()[0] == 0
+        assert db.execute("select count(*) from auth_sessions").fetchone()[0] >= 1
+        # expiry: push this session into the past
+        tok_exp = token_of(login(c)); c.cookies.clear()
+        import hashlib
+        db.execute("update auth_sessions set expires_at = '2000-01-01 00:00:00' where token_hash = ?",
+                   (hashlib.sha256(tok_exp.encode()).hexdigest(),)); db.commit()
+        assert c.get('/auth/me', headers={'x-demo-session': tok_exp}).status_code == 401
+        assert c.get('/auth/me', headers={'x-demo-session': tok}).status_code == 200
+        # logout revokes on the server, and a second logout is refused
+        tok_out = token_of(login(c)); c.cookies.clear()
+        assert c.post('/auth/logout', headers={'x-demo-session': tok_out}).status_code == 200
+        assert c.get('/auth/me', headers={'x-demo-session': tok_out}).status_code == 401
+        assert c.post('/auth/logout', headers={'x-demo-session': tok_out}).status_code == 401
+        assert c.get('/auth/me', headers={'x-demo-session': tok}).status_code == 200  # other session untouched
+        # logout everywhere revokes every session of the account
+        t1 = token_of(login(c)); c.cookies.clear(); t2 = token_of(login(c)); c.cookies.clear()
+        assert c.post('/auth/logout?everywhere=true', headers={'x-demo-session': t1}).status_code == 200
+        for t in (t1, t2, tok): assert c.get('/auth/me', headers={'x-demo-session': t}).status_code == 401
+        tok = token_of(login(c)); c.cookies.clear()
         # bad state (no cookie), wrong audience, unverified email
         mock(GOOD); st = c.get('/auth/google/login', follow_redirects=False).headers['location'].split('state=')[1].split('&')[0]
         c.cookies.clear()
@@ -73,10 +101,21 @@ def test_all():
         assert c.get(f'/tasks/{tid}', headers={'x-demo-session': 'anon-1'}).status_code == 404
         tok2 = token_of(login(c, {**GOOD, 'sub': 'g-2', 'email': 'b@example.com'}))
         assert c.get(f'/tasks/{tid}', headers={'x-demo-session': tok2}).status_code == 404
-        assert c.get(f'/tasks/{tid}', headers={'x-demo-session': 'ca1.' + tok.split('.',1)[1][:-2] + 'zz'}).status_code == 404
+        assert c.get(f'/tasks/{tid}', headers={'x-demo-session': tok[:-2] + 'zz'}).status_code == 404
         ids = [t['task_id'] for t in c.get('/tasks', headers={'x-demo-session': tok}).json()]
         assert tid in ids
         assert c.get('/tasks', headers={'x-demo-session': tok2}).json() == []
+        # stream tickets: owner only, task-bound, short-lived; a token in the query string no longer works
+        assert c.post(f'/tasks/{tid}/stream-ticket', headers={'x-demo-session': 'anon-1'}).status_code == 404
+        assert c.post(f'/tasks/{tid}/stream-ticket', headers={'x-demo-session': tok2}).status_code == 404
+        tk = c.post(f'/tasks/{tid}/stream-ticket', headers={'x-demo-session': tok}).json()['ticket']
+        assert demo_server._redeem_ticket(tk, f'/tasks/{tid}/stream') == demo_auth_owner(tok)
+        assert demo_server._redeem_ticket(tk, f'/tasks/{tid}') is None
+        assert demo_server._redeem_ticket(tk, '/tasks/other/stream') is None
+        assert c.get(f'/tasks/{tid}?session={tok}').status_code == 404
+        assert c.get(f'/tasks/{tid}/stream?session={tok}').status_code == 404
+        demo_server._tickets[tk] = (tid, 'x', 0)
+        assert demo_server._redeem_ticket(tk, f'/tasks/{tid}/stream') is None
         # restart simulation: memory cache lost, database still knows the owner
         demo_server._owners.clear()
         assert c.get(f'/tasks/{tid}', headers={'x-demo-session': tok}).status_code == 200
@@ -87,7 +126,7 @@ def test_all():
 def test_disabled_when_unconfigured():
     for k in ('GOOGLE_CLIENT_SECRET',): os.environ.pop(k)
     with TestClient(demo_server.app, base_url='https://testserver') as c:
-        assert c.get('/auth/config').json() == {'google': False}
+        assert c.get('/auth/config').json() == {'google': False, 'durable': False}
         assert c.get('/auth/google/login', follow_redirects=False).status_code == 503
         tok = demo_auth.TOKEN_PREFIX + 'x.y'
         assert start(c, tok).status_code == 400

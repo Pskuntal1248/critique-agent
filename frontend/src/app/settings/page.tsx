@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ByokSettings, DEMO_API, fetchAuthConfig, fetchMe, GOOGLE_LOGIN_URL, loadSettings, saveSettings } from '@/lib/api';
+import { ByokSettings, DEMO_API, fetchAuthConfig, fetchMe, GOOGLE_LOGIN_URL, loadSettings, saveSettings, signOut } from '@/lib/api';
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<ByokSettings>({provider: 'openrouter', model: '', key: ''});
@@ -9,9 +9,10 @@ export default function SettingsPage() {
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const [acct, setAcct] = useState<'loading' | 'off' | 'out' | string>('loading');
+  const [durable, setDurable] = useState(false);
   useEffect(() => { setSettings(loadSettings()); }, []);
   useEffect(() => {
-    Promise.all([fetchAuthConfig(), fetchMe()]).then(([c, me]) => setAcct(me ? me.email : c.google ? 'out' : 'off'));
+    Promise.all([fetchAuthConfig(), fetchMe()]).then(([c, me]) => { setDurable(c.durable); setAcct(me ? me.email : c.google ? 'out' : 'off'); });
   }, []);
   async function fetchModels() {
     setBusy(true); setStatus('Contacting your provider. The free backend may take a minute to wake up.');
@@ -33,9 +34,12 @@ export default function SettingsPage() {
     <div className="border border-line p-4 text-sm space-y-2">
       <p className="font-medium">Account</p>
       {acct === 'loading' && <p className="text-muted">Checking account support...</p>}
-      {acct === 'off' && <p>Accounts are not set up on this deployment. Reports are kept for this browser session only and are lost when the server restarts. Use Download .md or .json on a finished report to keep it.</p>}
-      {acct === 'out' && <p>Not signed in. <a className="underline" href={GOOGLE_LOGIN_URL}>Sign in with Google</a> to keep your reports across sessions. Your provider key stays in this tab either way.</p>}
-      {!['loading','off','out'].includes(acct) && <p>Signed in as {acct}. Your reports are saved to your account. Your provider key is not saved to it.</p>}
+      {acct === 'off' && <p>Accounts are not set up on this deployment. {durable ? 'Runs are stored in the database, but only this browser tab can open them.' : 'Reports are kept for this browser session only and are lost when the server restarts.'} Use Download .md or .json on a finished report to keep it.</p>}
+      {acct === 'out' && <p>Not signed in. <a className="underline" href={GOOGLE_LOGIN_URL}>Sign in with Google</a>{durable ? ' to keep your reports across sessions.' : '. Reports are still lost when the server restarts, because this deployment has no persistent database.'} Your provider key stays in this tab either way.</p>}
+      {!['loading','off','out'].includes(acct) && <div className="space-y-2">
+        <p>Signed in as {acct}. {durable ? 'Your reports are saved to your account in the database.' : 'This deployment has no persistent database, so your reports are lost when the server restarts. Download them to keep them.'} Your provider key is never saved to your account.</p>
+        <p>Logins last 7 days. <button type="button" className="underline" onClick={() => { signOut(true).then(() => { window.location.href = '/'; }); }}>Sign out of all devices</button></p>
+      </div>}
     </div>
     <label className="block space-y-2"><span>Provider</span><select className={field} value={settings.provider} onChange={e=>{setSettings({...settings, provider:e.target.value, model:''});setModels([]);}}>
       <option value="openrouter">OpenRouter</option><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="gemini">Google Gemini</option><option value="groq">Groq</option>
