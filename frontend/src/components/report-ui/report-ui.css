@@ -13,8 +13,8 @@
 .ru .tbl{margin:14px 0}
 .ru .tbl figcaption{font-size:13px;color:#666;margin-bottom:6px}
 .ru .scroll{overflow-x:auto}
-.ru table{border-collapse:collapse;width:100%;font-size:14px}
-.ru th, .ru td{text-align:left;border-bottom:1px solid #e4e4e4;padding:8px 10px}
+.ru table{border-collapse:collapse;width:100%;min-width:max-content;font-size:14px}
+.ru th, .ru td{min-width:130px;text-align:left;border-bottom:1px solid #e4e4e4;padding:8px 10px}
 .ru th{background:#fafafa;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
 .ru .steps{padding-left:20px;margin:6px 0}
 .ru .src{list-style:none;padding:0;margin:0}
