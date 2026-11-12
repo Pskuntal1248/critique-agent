@@ -41,7 +41,7 @@ export const Compare = defineComponent({
 export const Steps = defineComponent({
   name: 'Steps', description: 'An ordered list of steps or timeline items.',
   props: z.object({ title: z.string(), items: z.array(z.string()) }),
-  component: ({ props }) => (<div><h3>{props.title}</h3><ol className="steps">{props.items.map((s,i)=><li key={i}>{s}</li>)}</ol></div>),
+  component: ({ props }) => (<div>{props.title && <h3>{props.title}</h3>}<ol className="steps">{props.items.map((s,i)=><li key={i}>{s}</li>)}</ol></div>),
 });
 export const Section = defineComponent({
   name: 'Section', description: 'A titled section holding other blocks.',

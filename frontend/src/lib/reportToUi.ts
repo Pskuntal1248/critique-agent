@@ -21,7 +21,8 @@ function blocksFor(heading: string, body: string[]): Block[] {
   const out: Block[] = [];
   let buf: string[] = [];
   const flush = () => {
-    const text = buf.join('\n').trim();
+    // Drop bare horizontal rules (the writer puts one before Sources) so they do not block block detection.
+    const text = buf.filter((l) => !/^\s*(?:[-*_]\s*){3,}$/.test(l)).join('\n').trim();
     buf = [];
     if (!text) return;
     const lines = text.split('\n');
@@ -76,13 +77,20 @@ export function reportToOpenUi(markdown: string): string | null {
   if (sections.length < 1) return null;
 
   const srcIdx = sections.findIndex((s) => /^sources?$|^references?$|^citations?$/i.test(s.heading));
-  const srcSection = srcIdx >= 0 ? sections.splice(srcIdx, 1)[0] : null;
+  let srcSection: { heading: string; body: string[] } | null = null;
   const sources: { n: number; title: string; url: string }[] = [];
-  if (srcSection) {
-    for (const l of srcSection.body) {
+  if (srcIdx >= 0) {
+    const cand = sections[srcIdx];
+    let unparsed = 0;
+    for (const l of cand.body) {
+      if (/^\s*(?:[-*_]\s*){3,}$/.test(l) || l.trim() === '') continue;
       const m = /^\s*(?:(\d+)[.)]|[-*])\s+\[([^\]]+)\]\(([^)\s]+)\)/.exec(l);
       if (m) sources.push({ n: m[1] ? Number(m[1]) : sources.length + 1, title: m[2], url: m[3] });
+      else unparsed++;
     }
+    // If any line is not a plain linked entry, keep the whole section as ordinary content instead of dropping text.
+    if (unparsed === 0 && sources.length > 0) srcSection = sections.splice(srcIdx, 1)[0];
+    else sources.length = 0;
   }
   // Non-http(s) links stay as plain-text sources (the Source component renders no anchor for them).
   const safeSources = sources;
@@ -97,7 +105,7 @@ export function reportToOpenUi(markdown: string): string | null {
       const n = next('b');
       names.push(n);
       if (b.kind === 'table' && b.rows) stmts.push(`${n} = Compare(${q("")}, ${JSON.stringify(b.rows[0])}, ${JSON.stringify(b.rows.slice(1))})`);
-      else if (b.kind === 'steps') stmts.push(`${n} = Steps(${q('Steps')}, ${JSON.stringify(b.items)})`);
+      else if (b.kind === 'steps') stmts.push(`${n} = Steps(${q('')}, ${JSON.stringify(b.items)})`);
       else if (b.kind === 'callout') stmts.push(`${n} = Callout(${q(b.tone!)}, ${q(b.title!)}, ${q(b.text)})`);
       else stmts.push(`${n} = Prose(${q(b.text)})`);
     }

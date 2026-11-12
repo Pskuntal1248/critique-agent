@@ -27,10 +27,9 @@ export function ReportUI({ content }: { content: string }) {
   if (!program || plain || errors > 0) {
     return (
       <div>
-        {program && (
-          <button type="button" className="mb-3 border border-line px-3 py-1 text-xs" onClick={() => { setErrors(0); setPlain(false); }}>
-            {errors > 0 ? 'Structured view unavailable. Showing plain report.' : 'Show structured view'}
-          </button>
+        {program && errors > 0 && <p className="mb-3 text-xs text-muted">Structured view unavailable. Showing plain report.</p>}
+        {program && errors === 0 && (
+          <button type="button" className="mb-3 border border-line px-3 py-1 text-xs" onClick={() => setPlain(false)}>Show structured view</button>
         )}
         {md}
       </div>
