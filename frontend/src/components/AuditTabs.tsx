@@ -1,5 +1,6 @@
 'use client';
 
+import { HScroll } from '@/components/HScroll';
 import { useState } from 'react';
 import { AgentEventResponse, AgentStepResponse } from '@/lib/api';
 import { StatusBadge } from './StatusBadge';
@@ -43,12 +44,11 @@ export function AuditTabs({ events, steps }: Props) {
       </div>
 
       {tab === 'steps' && (
-        <div className="overflow-x-auto">
+        <div>
           {steps.length === 0 ? (
             <p className="text-sm text-muted py-4">No steps recorded yet.</p>
           ) : (
-            <>
-            <p className="text-xs text-muted pb-2 sm:hidden">Scroll sideways to see all columns.</p>
+            <HScroll>
             <table className="w-full min-w-[640px] text-xs">
               <thead>
                 <tr className="text-left text-muted font-medium uppercase tracking-wide">
@@ -67,7 +67,7 @@ export function AuditTabs({ events, steps }: Props) {
                       {step.step_number}
                     </td>
                     <td className="py-2 pr-3 font-medium text-ink capitalize">
-                      {step.agent_name}
+                      {step.agent_name.replace(/_/g, ' ')}
                     </td>
                     <td className="py-2 pr-3">
                       <StatusBadge status={step.status} />
@@ -85,7 +85,7 @@ export function AuditTabs({ events, steps }: Props) {
                 ))}
               </tbody>
             </table>
-            </>
+            </HScroll>
           )}
         </div>
       )}

@@ -364,7 +364,7 @@ export function TaskDetailClient({ taskId }: Props) {
           <h2 className="text-sm font-bold uppercase tracking-wide text-ink mb-4">
             Live events
           </h2>
-          <TaskTimeline events={streamEvents} isStreaming={isStreaming} />
+          <TaskTimeline events={streamEvents} isStreaming={isStreaming} finished={isTerminal} />
         </section>
 
         <section>

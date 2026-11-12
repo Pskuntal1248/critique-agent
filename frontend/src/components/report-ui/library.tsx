@@ -1,4 +1,5 @@
 'use client';
+import { HScroll } from '@/components/HScroll';
 import { defineComponent, createLibrary } from '@openuidev/react-lang';
 import { z } from 'zod/v4';
 import ReactMarkdown from 'react-markdown';
@@ -35,8 +36,8 @@ export const Compare = defineComponent({
   props: z.object({ caption: z.string(), columns: z.array(z.string()), rows: z.array(z.array(z.string())) }),
   component: ({ props }) => (
     <figure className="tbl">{props.caption && <figcaption>{props.caption}</figcaption>}
-      <div className="scroll"><table><thead><tr>{props.columns.map((c,i)=><th key={i}>{c}</th>)}</tr></thead>
-      <tbody>{props.rows.map((r,i)=><tr key={i}>{r.map((c,j)=><td key={j}>{c}</td>)}</tr>)}</tbody></table></div></figure>),
+      <HScroll><table><thead><tr>{props.columns.map((c,i)=><th key={i}>{c}</th>)}</tr></thead>
+      <tbody>{props.rows.map((r,i)=><tr key={i}>{r.map((c,j)=><td key={j}>{c}</td>)}</tr>)}</tbody></table></HScroll></figure>),
 });
 export const Steps = defineComponent({
   name: 'Steps', description: 'An ordered list of steps or timeline items.',
@@ -60,7 +61,7 @@ export const Report = defineComponent({
     <article className="report">
       <h1>{props.title}</h1>{props.summary && <div className="sum"><Md text={props.summary} /></div>}
       {renderNode(props.sections)}
-      <section><h2>Sources</h2><ul className="src">{renderNode(props.sources)}</ul></section>
+      {props.sources.length > 0 && <section><h2>Sources</h2><ul className="src">{renderNode(props.sources)}</ul></section>}
     </article>),
 });
 

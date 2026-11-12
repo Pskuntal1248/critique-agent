@@ -19,13 +19,16 @@ const EVENT_CONFIG: Record<string, EventConfig> = {
 interface Props {
   events: StreamEvent[];
   isStreaming: boolean;
+  finished?: boolean;
 }
 
-export function TaskTimeline({ events, isStreaming }: Props) {
+export function TaskTimeline({ events, isStreaming, finished }: Props) {
   if (events.length === 0 && !isStreaming) {
     return (
       <p className="text-sm text-muted py-6">
-        No live events yet. Events appear as the pipeline runs.
+        {finished
+          ? 'This run has finished. The live feed only shows events while a run is streaming. The recorded events are in the Execution audit.'
+          : 'No live events yet. Events appear as the pipeline runs.'}
       </p>
     );
   }

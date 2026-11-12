@@ -19,3 +19,9 @@ body {
 
 /* type floor: smallest label is 13px */
 .text-xs{font-size:.8125rem;line-height:1.25rem}
+
+/* Horizontal overflow affordance for wide tables */
+.hscroll-wrap{position:relative}
+.hscroll{overflow-x:auto}
+.hscroll-hint{font-size:13px;color:#666;margin:0 0 8px}
+.hscroll-fade{position:absolute;top:0;right:0;bottom:0;width:36px;pointer-events:none;background:linear-gradient(to right,rgba(255,255,255,0),#fff)}
