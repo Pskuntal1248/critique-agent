@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { LandingNote } from '@/components/DemoBanner';
 import './landing.css';
 
 export const metadata: Metadata = {
@@ -19,7 +20,7 @@ export default function WelcomePage() {
  <h1 style={{ marginTop: '22px' }}>Research that<br />argues with itself.</h1>
  <p className="lead">Critique plans a question, researches the web, drafts an analysis, then makes a critic challenge it. You read the draft before the report is written.</p>
  <div className="cta"><Link className="btn" href="/tasks/new">Start a research task</Link><a className="link" href="#sample-report">See a sample report</a></div>
- <div className="small">Bring your own model key. No account needed to try it.</div>
+ <LandingNote />
 
  <div className="win"><div className="bar"><span><i>Run</i> · UPI-led fintech: top 3 opportunities</span><span>sample run</span></div>
   <div className="grid"><div className="steps">
@@ -61,7 +62,7 @@ export default function WelcomePage() {
   <p className="small" style={{ marginTop: '16px' }}>Download as Markdown or JSON.</p></div></div>
 </section></div>
 
-<div className="wrap"><section>
+<div className="wrap"><section id="how">
  <div className="head"><h2>One run, five roles.</h2><p className="lead">The pipeline is fixed on purpose, so each result can be traced step by step.</p></div>
  <div className="flow"><div>Plan</div><div>Research</div><div>Analyse</div><div className="a">Critique</div><div>Write</div></div>
  <div className="small">The critic can send the draft back to the analyst. A human review can pause the run before the writer.</div>

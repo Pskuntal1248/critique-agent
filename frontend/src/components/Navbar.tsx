@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { fetchAuthConfig, fetchMe, GOOGLE_LOGIN_URL, signOut, type AuthUser } from '@/lib/api';
 
 const API_DOCS_URL = `${process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000'}/docs`;
 
 export function Navbar() {
+  const landing = usePathname() === '/welcome';
   const [googleOn, setGoogleOn] = useState(false);
   const [user, setUser] = useState<AuthUser | null>(null);
   useEffect(() => {
@@ -27,17 +29,19 @@ export function Navbar() {
         </Link>
 
         <div className="flex items-center gap-6 text-sm">
-          <Link href="/" className="text-muted hover:text-ink transition-colors">
-            Dashboard
-          </Link>
-          <a
-            href={API_DOCS_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-muted hover:text-ink transition-colors"
-          >
-            API docs
-          </a>
+          {landing ? (
+            <>
+              <a href="#how" className="hidden sm:inline text-muted hover:text-ink transition-colors">How it runs</a>
+              <a href="#sample-report" className="hidden sm:inline text-muted hover:text-ink transition-colors">Report</a>
+              <a href="https://github.com/Pskuntal1248/critique-agent" className="hidden sm:inline text-muted hover:text-ink transition-colors">GitHub</a>
+              <Link href="/" className="text-muted hover:text-ink transition-colors">Dashboard</Link>
+            </>
+          ) : (
+            <>
+              <Link href="/" className="text-muted hover:text-ink transition-colors">Dashboard</Link>
+              <a href={API_DOCS_URL} target="_blank" rel="noopener noreferrer" className="text-muted hover:text-ink transition-colors">API docs</a>
+            </>
+          )}
           {user ? (
             <span className="flex items-center gap-3 text-muted">
               <span className="hidden sm:inline max-w-[160px] truncate" title={user.email}>{user.email}</span>
