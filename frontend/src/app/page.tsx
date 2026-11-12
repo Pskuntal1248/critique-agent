@@ -217,7 +217,7 @@ export default function DashboardPage() {
               onChange={(e) => setTaskIdInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && lookup()}
               placeholder="Open by task ID"
-              className="w-64 border border-line px-3 py-1.5 text-sm placeholder-muted focus:outline-none focus:border-ink focus-visible:ring-2 focus-visible:ring-ink"
+              className="flex-1 min-w-0 sm:w-64 sm:flex-none border border-line px-3 py-1.5 text-sm placeholder-muted focus:outline-none focus:border-ink focus-visible:ring-2 focus-visible:ring-ink"
             />
             <button
               onClick={lookup}
@@ -243,6 +243,8 @@ export default function DashboardPage() {
             </p>
           </div>
         ) : (
+          <>
+          <p className="text-xs text-muted pb-2 sm:hidden">Scroll sideways to see all columns.</p>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -261,7 +263,7 @@ export default function DashboardPage() {
                     key={t.task_id}
                     className="border-b border-line hover:bg-[#f6f6f6] transition-colors"
                   >
-                    <td className="py-3 pr-4 max-w-md">
+                    <td className="py-3 pr-4 max-w-[9.5rem] sm:max-w-md">
                       <Link
                         href={`/tasks/${t.task_id}`}
                         className="block text-ink font-medium truncate hover:underline decoration-ink decoration-2 underline-offset-4"
@@ -300,6 +302,7 @@ export default function DashboardPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </section>
 
@@ -319,8 +322,8 @@ export default function DashboardPage() {
                 const pct = maxMs > 0 ? (ms / maxMs) * 100 : 0;
                 return (
                   <div key={agent} className="flex items-center gap-4">
-                    <span className="w-24 text-sm text-ink capitalize">
-                      {agent}
+                    <span className="w-36 shrink-0 text-sm text-ink capitalize">
+                      {agent.replace(/_/g, " ")}
                     </span>
                     <div className="flex-1 bg-line h-2">
                       <div

@@ -16,7 +16,6 @@ export default function WelcomePage() {
 
 
 <div className="wrap hero">
- <span className="tag">Illustrated with sample data</span>
  <h1 style={{ marginTop: '22px' }}>Research that<br />argues with itself.</h1>
  <p className="lead">Critique plans a question, researches the web, drafts an analysis, then makes a critic challenge it. You read the draft before the report is written.</p>
  <div className="cta"><Link className="btn" href="/tasks/new">Start a research task</Link><a className="link" href="#sample-report">See a sample report</a></div>
