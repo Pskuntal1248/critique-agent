@@ -14,6 +14,7 @@ import {
 import { StatusBadge } from '@/components/StatusBadge';
 import { TaskTimeline } from '@/components/TaskTimeline';
 import { ApprovalPanel } from '@/components/ApprovalPanel';
+import { ReviewDraft } from '@/components/ReviewDraft';
 import { AuditTabs } from '@/components/AuditTabs';
 import { ReportView } from '@/components/ReportView';
 import {
@@ -337,6 +338,8 @@ export function TaskDetailClient({ taskId }: Props) {
         ))}
       </dl>
 
+      {task.status === 'awaiting_approval' && <ReviewDraft taskId={taskId} />}
+
       {task.status === 'awaiting_approval' && (
         <ApprovalPanel
           taskId={taskId}
@@ -370,8 +373,10 @@ export function TaskDetailClient({ taskId }: Props) {
       )}
 
       {task.error && (
-        <section className="border-l-4 border-bad px-4 py-3">
-          <h3 className="text-sm font-bold text-bad mb-1.5">Pipeline error</h3>
+        <section className={`border-l-4 px-4 py-3 ${task.status === 'cancelled' ? 'border-line' : 'border-bad'}`}>
+          <h3 className={`text-sm font-bold mb-1.5 ${task.status === 'cancelled' ? 'text-ink' : 'text-bad'}`}>
+            {task.status === 'cancelled' ? 'Run stopped' : 'Pipeline error'}
+          </h3>
           <pre className="text-xs text-ink font-mono whitespace-pre-wrap break-all">
             {task.error}
           </pre>
