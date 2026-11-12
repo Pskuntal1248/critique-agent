@@ -16,3 +16,6 @@ body {
 .timeline-scroll {
   scroll-behavior: smooth;
 }
+
+/* type floor: smallest label is 13px */
+.text-xs{font-size:.8125rem;line-height:1.25rem}
