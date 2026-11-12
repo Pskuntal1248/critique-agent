@@ -194,3 +194,11 @@ async def demo_info():
             'credentials': 'Browser session storage; transmitted to backend only for provider requests, never persisted server-side',
             'source': 'https://github.com/Pskuntal1248/critique-agent',
             'credit': 'Adapted from AgentForge'}
+
+# Keep CORS outermost so validation failures and session-filtered responses
+# also receive the allow-origin headers needed by the Vercel frontend.
+from fastapi.middleware.cors import CORSMiddleware
+from app.core.config import settings
+app.user_middleware = [m for m in app.user_middleware if m.cls is not CORSMiddleware]
+app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins,
+                   allow_credentials=True, allow_methods=['*'], allow_headers=['*'])
