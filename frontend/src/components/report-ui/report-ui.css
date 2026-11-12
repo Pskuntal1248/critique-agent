@@ -1,0 +1,35 @@
+.ru h1{font-size:34px;line-height:1.15;margin:8px 0 12px}
+.ru h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;margin:34px 0 12px;padding-top:14px;border-top:1px solid #e4e4e4}
+.ru h3{font-size:16px;margin:18px 0 6px}
+.ru .sum{font-size:18px;color:#444;margin:0 0 6px}
+.ru .mrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:1px;background:#e4e4e4;border:1px solid #e4e4e4;margin:10px 0}
+.ru .metric{padding:14px 16px;background:#fff}
+.ru .ml{font-size:12px;color:#666;text-transform:uppercase;letter-spacing:.04em}
+.ru .mv{font-size:26px;font-weight:700;margin:4px 0}
+.ru .mn{font-size:13px;color:#666}
+.ru .callout{border:1px solid #e4e4e4;border-left:3px solid #88bdf2;background:#f4f9fe;padding:10px 14px;margin:12px 0;border-radius:2px}
+.ru .callout.risk{border-left-color:#111;background:#fafafa}
+.ru .callout p{margin:4px 0 0}
+.ru .tbl{margin:14px 0}
+.ru .tbl figcaption{font-size:13px;color:#666;margin-bottom:6px}
+.ru .scroll{overflow-x:auto}
+.ru table{border-collapse:collapse;width:100%;font-size:14px}
+.ru th, .ru td{text-align:left;border-bottom:1px solid #e4e4e4;padding:8px 10px}
+.ru th{background:#fafafa;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+.ru .steps{padding-left:20px;margin:6px 0}
+.ru .src{list-style:none;padding:0;margin:0}
+.ru .src li{padding:6px 0;border-bottom:1px solid #f0f0f0;font-size:14px}
+.ru .sn{color:#666}
+.ru .sd{color:#666;font-size:12px;margin-left:6px}
+.ru a{color:#111}
+@media(max-width:600px){.ru h1{font-size:26px}.ru .mrow{grid-template-columns:1fr}}
+.ru h1,.ru h2,.ru h3{font-weight:700}
+.ru h2{font-weight:600}
+.ru ol.steps{list-style:decimal;padding-left:22px}
+.ru ul.src{list-style:none}
+.ru a{text-decoration:underline;text-underline-offset:2px}
+.ru .md ul{list-style:disc;padding-left:22px;margin:6px 0}
+.ru .md ol{list-style:decimal;padding-left:22px;margin:6px 0}
+.ru .md p{margin:8px 0}
+.ru .md code{background:#f6f6f6;padding:1px 4px}
+.ru .md h2,.ru .md h3{text-transform:none;letter-spacing:0;border:0;padding:0;margin:14px 0 6px;font-size:16px}

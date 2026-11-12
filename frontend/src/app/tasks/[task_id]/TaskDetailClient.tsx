@@ -16,7 +16,7 @@ import { TaskTimeline } from '@/components/TaskTimeline';
 import { ApprovalPanel } from '@/components/ApprovalPanel';
 import { ReviewDraft } from '@/components/ReviewDraft';
 import { AuditTabs } from '@/components/AuditTabs';
-import { ReportView } from '@/components/ReportView';
+import { ReportUI } from '@/components/report-ui/ReportUI';
 import {
   formatDuration,
   formatCost,
@@ -368,7 +368,7 @@ export function TaskDetailClient({ taskId }: Props) {
           <h2 className="text-sm font-bold uppercase tracking-wide text-ink mb-6">
             Report
           </h2>
-          <ReportView content={task.final_report} />
+          <ReportUI content={task.final_report} />
         </section>
       )}
 
