@@ -303,4 +303,4 @@ export function streamTask(
   };
 
   return () => es.close();
-  }
+}
