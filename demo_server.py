@@ -49,6 +49,24 @@ from app.models.task_run import TaskRun
 from app.models.agent_step import AgentStep
 import app.services.metrics_service as metrics_service
 
+# The original cost table covers only its two default models, not visitor choices.
+# Do not show invented prices for BYOK models.
+_original_finalize = graph_worker._finalize_task
+async def finalize_byok(*args, **kwargs):
+    cred = _credentials.get()
+    if cred:
+        kwargs['llm_provider'], kwargs['model_name'] = cred[0], cred[1]
+        kwargs['estimated_cost_usd'] = None
+    await _original_finalize(*args, **kwargs)
+graph_worker._finalize_task = finalize_byok
+_original_emit = graph_worker._emit_event
+async def emit_byok(*args, **kwargs):
+    args = list(args)
+    if len(args)>4 and isinstance(args[4], dict):
+        args[4] = {k:v for k,v in args[4].items() if k != 'estimated_cost_usd'}
+    await _original_emit(*args, **kwargs)
+graph_worker._emit_event = emit_byok
+
 _jobs = {}
 _owners = {}
 _job_started = {}
