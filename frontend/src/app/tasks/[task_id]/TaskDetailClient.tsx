@@ -36,6 +36,16 @@ interface Props {
   taskId: string;
 }
 
+function friendlyDetail(raw: string): string {
+  try {
+    const d = JSON.parse(raw);
+    if (d && typeof d.detail === 'string') return d.detail;
+  } catch {
+    /* not JSON */
+  }
+  return raw.length > 200 ? `${raw.slice(0, 200)}...` : raw;
+}
+
 export function TaskDetailClient({ taskId }: Props) {
   const [task, setTask] = useState<TaskResponse | null>(null);
   const [auditEvents, setAuditEvents] = useState<AgentEventResponse[]>([]);
@@ -68,7 +78,9 @@ export function TaskDetailClient({ taskId }: Props) {
     } catch (e) {
       const msg =
         e instanceof ApiError
-          ? `${e.status === 404 ? 'Task not found' : `Error ${e.status}`}: ${e.message}`
+          ? e.status === 404
+            ? 'Task not found. It may belong to another browser session, or the server restarted and cleared session data.'
+            : `Could not load the task (error ${e.status}). ${friendlyDetail(e.message)}`
           : 'Failed to load task';
       setFetchError(msg);
       return null;

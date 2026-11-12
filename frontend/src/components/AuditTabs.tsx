@@ -47,7 +47,8 @@ export function AuditTabs({ events, steps }: Props) {
           {steps.length === 0 ? (
             <p className="text-sm text-muted py-4">No steps recorded yet.</p>
           ) : (
-            <table className="w-full text-xs">
+            <p className="text-[11px] text-muted pb-2 sm:hidden">Scroll sideways to see all columns.</p>
+            <table className="w-full min-w-[640px] text-xs">
               <thead>
                 <tr className="text-left text-muted font-medium uppercase tracking-wide">
                   <th className="pb-2 pr-3 font-medium">#</th>

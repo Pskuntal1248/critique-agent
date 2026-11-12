@@ -137,11 +137,11 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <ol className="grid grid-cols-5 border border-line">
+        <ol className="grid grid-cols-1 sm:grid-cols-5 border border-line">
           {STEPS.map((step, i) => (
             <li
               key={step}
-              className="px-4 py-3 text-xs font-medium border-l border-line first:border-l-0"
+              className="px-4 py-3 text-xs font-medium border-t border-line first:border-t-0 sm:border-t-0 sm:border-l sm:first:border-l-0"
             >
               <span className="tabular-nums mr-2 opacity-60">0{i + 1}</span>
               {step}
