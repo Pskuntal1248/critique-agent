@@ -33,9 +33,11 @@ from app.core.constants import (
     EVENT_AWAITING_APPROVAL,
     EVENT_TASK_COMPLETE,
     EVENT_TASK_FAILED,
+    HUMAN_REJECT,
     MODEL_PRICING,
     OPENAI_MODEL,
     STATUS_AWAITING_APPROVAL,
+    STATUS_CANCELLED,
     STATUS_COMPLETE,
     STATUS_FAILED,
     STATUS_PENDING,
@@ -165,7 +167,9 @@ async def _run_graph_async(task_id: str, original_task: str, human_in_loop: bool
                     break  # exit astream loop
 
             if interrupt_value is not None:
-                # Human approval required — update DB, publish event, then poll
+                # Human approval required. Clear any earlier decision first, otherwise a stale
+                # "feedback" is read back instantly and the run loops on its own without a human.
+                await _clear_human_decision(session_factory, task_id)
                 await _update_task_status(session_factory, task_id=task_id, status=STATUS_AWAITING_APPROVAL)
 
                 interrupt_data = interrupt_value[0].value if interrupt_value else {}
@@ -184,6 +188,10 @@ async def _run_graph_async(task_id: str, original_task: str, human_in_loop: bool
 
         total_duration_ms = int((time.monotonic() - t0) * 1000)
         final_status = values.get("status", STATUS_COMPLETE)
+        rejected = values.get("human_decision") == HUMAN_REJECT and not values.get("final_report")
+        if rejected:
+            # The graph ends at the gate on reject; do not leave the run showing "awaiting approval".
+            final_status = STATUS_CANCELLED
         final_report = values.get("final_report")
         total_tokens = values.get("tokens_used", 0)
         prompt_tokens = values.get("prompt_tokens_used", 0)
@@ -200,6 +208,7 @@ async def _run_graph_async(task_id: str, original_task: str, human_in_loop: bool
             session_factory,
             task_id=task_id,
             status=final_status,
+            error="Rejected at review." if rejected else None,
             final_report=final_report,
             total_tokens=total_tokens,
             prompt_tokens=prompt_tokens,
@@ -241,6 +250,14 @@ async def _run_graph_async(task_id: str, original_task: str, human_in_loop: bool
 
 
 # ─── Human-in-the-loop polling ────────────────────────────────────────────────
+
+async def _clear_human_decision(session_factory: async_sessionmaker, task_id: str) -> None:
+    async with session_factory() as db:
+        run = await db.scalar(select(TaskRun).where(TaskRun.id == uuid.UUID(task_id)))
+        if run and (run.human_decision or run.human_feedback):
+            run.human_decision = None
+            await db.commit()
+
 
 async def _poll_for_human_decision(
     session_factory: async_sessionmaker,

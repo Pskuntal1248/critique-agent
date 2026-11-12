@@ -99,3 +99,43 @@ def test_review_endpoint_is_session_scoped(client):
     assert client.get(f'/tasks/{tid}/review', headers=h('s1')).status_code == 200
     assert client.get(f'/tasks/{tid}/review', headers=h('other')).status_code == 404
     assert client.get(f'/tasks/{tid}/review').status_code == 404
+
+
+def _status(client, tid, session='s1'):
+    return client.get(f'/tasks/{tid}', headers={'x-demo-session': session}).json()
+
+
+def test_timeout_marks_run_failed_and_releases_key(client, monkeypatch):
+    monkeypatch.setattr(demo_server, 'JOB_TIMEOUT_SECONDS', 0.3)
+    tid = run_and_wait(client, 'hang')  # sleeps 0.5 s, past the 0.3 s cap
+    import time; time.sleep(0.5)
+    body = _status(client, tid)
+    assert body['status'] == 'failed' and 'review counts toward this limit' in (body.get('error') or '')
+    assert alive() == [] and not demo_server._jobs
+
+
+def test_review_wait_counts_toward_cap_and_never_auto_approves(client, monkeypatch):
+    """Real nodes and worker loop, scripted model: the run pauses at review, nobody answers,
+    and the cap fails the run. It must not be approved or write a report."""
+    from tests.test_pipeline_integration import ScriptedLLM
+    monkeypatch.setattr(langchain_openai, 'ChatOpenAI', lambda **kw: ScriptedLLM())
+    ScriptedLLM.critic_calls = 0; ScriptedLLM.critic_fail = False
+    monkeypatch.setattr(demo_server, 'JOB_TIMEOUT_SECONDS', 6)
+    monkeypatch.setattr(demo_server.graph_worker, '_run_graph_async', _REAL_RUN)
+    r = client.post('/tasks', json={'task': 'Compare two sample tools', 'human_in_loop': True}, headers={
+        'x-llm-provider': 'openai', 'x-llm-model': 'm', 'x-llm-key': SENTINEL, 'x-demo-session': 's1'})
+    tid = r.json()['task_id']
+    import time
+    seen = set()
+    for _ in range(40):
+        time.sleep(0.5); st = _status(client, tid); seen.add(st['status'])
+        if st['status'] == 'failed': break
+    assert 'awaiting_approval' in seen
+    st = _status(client, tid)
+    assert st['status'] == 'failed' and not st.get('final_report')
+    assert 'review counts toward this limit' in (st.get('error') or '')
+    assert st['llm_provider'] == 'openai'
+    time.sleep(0.5); assert alive() == [] and not demo_server._jobs
+
+
+_REAL_RUN = demo_server.graph_worker._run_graph_async

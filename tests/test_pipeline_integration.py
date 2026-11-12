@@ -116,3 +116,65 @@ async def test_critic_failure_fails_the_run_instead_of_approving(env):
     async with env() as db:
         run = await db.scalar(select(TaskRun).where(TaskRun.id == uuid.UUID(tid)))
     assert run.status == "failed" and not run.final_report
+
+
+async def _wait_status(factory, tid, want, tries=200):
+    for _ in range(tries):
+        async with factory() as db:
+            run = await db.scalar(select(TaskRun).where(TaskRun.id == uuid.UUID(tid)))
+        if run.status == want:
+            return run
+        await asyncio.sleep(0.05)
+    raise AssertionError(f"never reached {want}, last {run.status}")
+
+
+async def _steps(factory, tid):
+    async with factory() as db:
+        rows = await db.scalars(select(AgentStep).where(AgentStep.task_id == uuid.UUID(tid))
+                                .order_by(AgentStep.step_number))
+        return [s.agent_name for s in rows]
+
+
+async def test_feedback_reanalyses_once_then_waits_for_the_human_again(env):
+    """Regression: a stale 'feedback' decision used to be re-read at the next pause, so the
+    run looped analyst->critic->gate by itself (unbounded model calls)."""
+    tid = await _new_run(env, True)
+    job = asyncio.create_task(graph_worker._run_graph_async(tid, "Compare two sample tools", True))
+    await _wait_status(env, tid, "awaiting_approval")
+    before = await _steps(env, tid)
+    assert before.count("human_gate") == 0 and before.count("analyst") == 2
+    async with env() as db:
+        r = await db.scalar(select(TaskRun).where(TaskRun.id == uuid.UUID(tid)))
+        r.human_decision, r.human_feedback = "feedback", "Add pricing."
+        await db.commit()
+    for _ in range(100):  # wait for the second pause
+        if (await _steps(env, tid)).count("human_gate") >= 1 and (await _steps(env, tid))[-1] == "human_gate":
+            break
+        await asyncio.sleep(0.05)
+    await asyncio.sleep(1.0)  # a looping run would add more analyst/critic/gate steps here
+    after = await _steps(env, tid)
+    assert after.count("analyst") == 3 and after.count("human_gate") == 1, after
+    async with env() as db:
+        run = await db.scalar(select(TaskRun).where(TaskRun.id == uuid.UUID(tid)))
+        assert run.status == "awaiting_approval" and not run.human_decision
+        run.human_decision = "approve"
+        await db.commit()
+    await asyncio.wait_for(job, 20)
+    async with env() as db:
+        run = await db.scalar(select(TaskRun).where(TaskRun.id == uuid.UUID(tid)))
+    assert run.status == "complete" and run.final_report == "# FINAL REPORT"
+
+
+async def test_reject_ends_run_without_report(env):
+    tid = await _new_run(env, True)
+    job = asyncio.create_task(graph_worker._run_graph_async(tid, "Compare two sample tools", True))
+    await _wait_status(env, tid, "awaiting_approval")
+    async with env() as db:
+        r = await db.scalar(select(TaskRun).where(TaskRun.id == uuid.UUID(tid)))
+        r.human_decision = "reject"
+        await db.commit()
+    await asyncio.wait_for(job, 20)
+    async with env() as db:
+        run = await db.scalar(select(TaskRun).where(TaskRun.id == uuid.UUID(tid)))
+    assert not run.final_report and "writer" not in await _steps(env, tid)
+    assert run.status == "cancelled" and run.error == "Rejected at review."

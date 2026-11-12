@@ -113,10 +113,12 @@ async def _mark_stopped(task_id, message, event_message):
     finally:
         await engine.dispose()
 
+JOB_TIMEOUT_SECONDS = 600  # includes time spent waiting for human review
+
 async def bounded_graph(task_id, original_task, human_in_loop):
     failure = None
     try:
-        await asyncio.wait_for(graph_worker._run_graph_async(task_id, original_task, human_in_loop), timeout=600)
+        await asyncio.wait_for(graph_worker._run_graph_async(task_id, original_task, human_in_loop), timeout=JOB_TIMEOUT_SECONDS)
     except asyncio.TimeoutError:
         failure = ('Free demo stopped this task after 10 minutes. A run waiting for review counts toward this limit.', 'Demo time limit reached.')
     except Exception:

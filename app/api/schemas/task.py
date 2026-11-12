@@ -1,6 +1,18 @@
-from datetime import datetime
+from datetime import UTC, datetime
+from typing import Annotated
 
-from pydantic import BaseModel, Field
+from pydantic import AfterValidator, BaseModel, Field
+
+
+def _as_utc(value: datetime) -> datetime:
+    """Aware values keep their offset. Naive values come from SQLite, which drops tzinfo.
+
+    Every writer in this app stores datetime.now(UTC), so a naive stored value is UTC.
+    """
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value
+
+
+UTCDateTime = Annotated[datetime, AfterValidator(_as_utc)]
 
 
 class TaskCreateRequest(BaseModel):
@@ -33,8 +45,8 @@ class TaskResponse(BaseModel):
     total_duration_ms: int | None
     final_report: str | None
     error: str | None
-    created_at: datetime
-    updated_at: datetime
+    created_at: UTCDateTime
+    updated_at: UTCDateTime
 
     model_config = {"from_attributes": True}
 
@@ -51,7 +63,7 @@ class TaskSummary(BaseModel):
     total_tokens: int
     estimated_cost_usd: float | None
     total_duration_ms: int | None
-    created_at: datetime
+    created_at: UTCDateTime
 
 
 class HumanApproveRequest(BaseModel):
@@ -73,7 +85,7 @@ class AgentEventResponse(BaseModel):
     event_type: str
     agent_name: str | None
     data: dict
-    created_at: datetime
+    created_at: UTCDateTime
 
     model_config = {"from_attributes": True}
 
@@ -87,7 +99,7 @@ class AgentStepResponse(BaseModel):
     tokens_used: int
     duration_ms: int | None
     error: str | None
-    created_at: datetime
+    created_at: UTCDateTime
 
     model_config = {"from_attributes": True}
 
@@ -108,8 +120,8 @@ class ReportExportResponse(BaseModel):
     model_name: str | None
     llm_provider: str | None
     total_duration_ms: int | None
-    created_at: datetime
-    updated_at: datetime
+    created_at: UTCDateTime
+    updated_at: UTCDateTime
 
 
 # ─── Review schema ────────────────────────────────────────────────────────────
