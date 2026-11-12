@@ -27,6 +27,21 @@ _provider_urls = {
 }
 import app.services.llm.base as llm_base
 
+class PrivateModel:
+    """Do not expose provider error bodies, which can echo credentials."""
+    def __init__(self, inner):
+        self.inner = inner
+    def bind_tools(self, tools):
+        try:
+            return PrivateModel(self.inner.bind_tools(tools))
+        except Exception:
+            raise ValueError('Provider could not configure tool calling. Check model support.') from None
+    def invoke(self, messages):
+        try:
+            return self.inner.invoke(messages)
+        except Exception:
+            raise ValueError('Model request failed. Check your API key, model access, quota and tool-calling support.') from None
+
 def byok_llm(temperature=0.3):
     cred = _credentials.get()
     if not cred:
@@ -34,11 +49,11 @@ def byok_llm(temperature=0.3):
     provider, model, key, session = cred
     if provider == 'anthropic':
         from langchain_anthropic import ChatAnthropic
-        return ChatAnthropic(model=model, api_key=key, temperature=temperature,
-                             max_tokens=2048, max_retries=1, timeout=45)
+        return PrivateModel(ChatAnthropic(model=model, api_key=key, temperature=temperature,
+                             max_tokens=2048, max_retries=1, timeout=45))
     from langchain_openai import ChatOpenAI
-    return ChatOpenAI(model=model, base_url=_provider_urls[provider], api_key=key,
-                      temperature=temperature, max_tokens=2048, max_retries=1, timeout=45)
+    return PrivateModel(ChatOpenAI(model=model, base_url=_provider_urls[provider], api_key=key,
+                      temperature=temperature, max_tokens=2048, max_retries=1, timeout=45))
 llm_base.get_llm = byok_llm
 
 from fastapi import HTTPException, Request
@@ -71,10 +86,21 @@ _jobs = {}
 _owners = {}
 _job_started = {}
 
+async def bounded_graph(task_id, original_task, human_in_loop):
+    try:
+        await asyncio.wait_for(graph_worker._run_graph_async(task_id, original_task, human_in_loop), timeout=600)
+    except asyncio.TimeoutError:
+        from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+        engine = create_async_engine(os.environ['DATABASE_URL'])
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        await finalize_byok(factory, task_id=task_id, status='failed', error='Free demo stopped this task after 10 minutes.')
+        await emit_byok(factory, task_id, 'task_failed', None, {'task_id':task_id, 'error':'Demo time limit reached.', 'is_final':True})
+        await engine.dispose()
+
 class LocalQueue:
     def delay(self, task_id, original_task, human_in_loop):
         _owners[task_id] = _credentials.get()[3]
-        job = asyncio.create_task(asyncio.wait_for(graph_worker._run_graph_async(task_id, original_task, human_in_loop), timeout=600))
+        job = asyncio.create_task(bounded_graph(task_id, original_task, human_in_loop))
         _jobs[task_id] = job
         _job_started[task_id] = time.monotonic()
         job.add_done_callback(lambda _: _jobs.pop(task_id, None))
@@ -90,7 +116,8 @@ graph_worker.celery_app.control.revoke = revoke
 
 async def sqlite_metrics(db, hours=24):
     since = datetime.now(UTC) - timedelta(hours=hours)
-    ids = [k for k, v in _owners.items() if v == _visitor.get()]
+    import uuid
+    ids = [uuid.UUID(k) for k, v in _owners.items() if v == _visitor.get()]
     runs = list(await db.scalars(select(TaskRun).where(TaskRun.created_at >= since, TaskRun.id.in_(ids))))
     steps = list(await db.scalars(select(AgentStep).where(AgentStep.created_at >= since, AgentStep.task_id.in_(ids))))
     durations = sorted(r.total_duration_ms or 0 for r in runs)
