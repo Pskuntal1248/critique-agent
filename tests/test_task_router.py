@@ -169,3 +169,19 @@ async def test_list_tasks_returns_summaries(async_client):
 async def test_list_tasks_rejects_bad_limit(async_client):
     response = await async_client.get("/tasks?limit=0")
     assert response.status_code == 422
+
+
+def test_response_datetimes_are_utc_aware():
+    from datetime import UTC, datetime, timedelta, timezone
+
+    from app.api.schemas.task import AgentStepResponse
+
+    base = dict(id=1, agent_name="a", step_number=1, status="completed",
+                output_summary=None, tokens_used=0, duration_ms=None, error=None)
+    naive = AgentStepResponse(**base, created_at=datetime(2026, 1, 1, 12, 0))
+    assert naive.created_at.utcoffset() == timedelta(0)
+    assert naive.model_dump_json().count("Z") == 1 or "+00:00" in naive.model_dump_json()
+    ist = timezone(timedelta(hours=5, minutes=30))
+    aware = AgentStepResponse(**base, created_at=datetime(2026, 1, 1, 12, 0, tzinfo=ist))
+    assert aware.created_at.utcoffset() == timedelta(hours=5, minutes=30)  # offset preserved, not overwritten
+    assert aware.created_at.astimezone(UTC).hour == 6

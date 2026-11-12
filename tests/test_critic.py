@@ -88,16 +88,12 @@ def test_critic_accumulates_tokens(base_state):
     assert result["tokens_used"] == 140
 
 
-def test_critic_defaults_to_approved_on_llm_error(base_state):
-    """On any failure, critic should approve by default so pipeline doesn't stall."""
+def test_critic_fails_closed_on_llm_error(base_state):
+    """A critic that cannot run must not count as an approval: the error propagates."""
     base_state["analysis"] = "some analysis"
     llm = MagicMock()
     llm.invoke.side_effect = RuntimeError("service unavailable")
 
     with patch("app.agents.nodes.critic.get_llm", return_value=llm):
-        result = critic_node(base_state)
-
-    assert result["critic_approved"] is True
-    assert result["critic_score"] == pytest.approx(0.5)
-    assert len(result["errors"]) == 1
-    assert "critic" in result["errors"][0]
+        with pytest.raises(RuntimeError):
+            critic_node(base_state)

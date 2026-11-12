@@ -117,12 +117,5 @@ def critic_node(state: AgentState) -> dict:
         }
     except Exception as exc:
         logger.error("critic_failed", task_id=state["task_id"], error=str(exc))
-        # On failure, approve by default so the pipeline doesn't stall
-        return {
-            "critic_score": 0.5,
-            "critic_approved": True,
-            "critic_feedback": "",
-            "status": STATUS_CRITIQUING,
-            "active_agent": AGENT_CRITIC,
-            "errors": [f"critic: {exc}"],
-        }
+        # Fail closed: a critic that could not run must not count as an approval.
+        raise

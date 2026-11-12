@@ -102,3 +102,8 @@ def base_state(sample_task) -> dict:
         "errors": [],
         "messages": [],
     }
+
+
+# tests/lifecycle patches the shared FastAPI app and worker at import time (demo_server), so it
+# runs in its own process via tests/test_byok_lifecycle_isolated.py instead of being collected here.
+collect_ignore_glob = ["lifecycle/*"]
