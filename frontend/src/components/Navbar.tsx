@@ -8,7 +8,7 @@ import { fetchAuthConfig, fetchMe, GOOGLE_LOGIN_URL, signOut, type AuthUser } fr
 const API_DOCS_URL = `${process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000'}/docs`;
 
 export function Navbar() {
-  const landing = usePathname() === '/welcome';
+  const landing = usePathname() === '/';
   const [googleOn, setGoogleOn] = useState(false);
   const [user, setUser] = useState<AuthUser | null>(null);
   useEffect(() => {
@@ -19,7 +19,7 @@ export function Navbar() {
     <header className="border-b border-line bg-white sticky top-0 z-10">
       <nav
         aria-label="Main"
-        className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between"
+        className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-3"
       >
         <Link
           href="/"
@@ -28,17 +28,17 @@ export function Navbar() {
           Critique
         </Link>
 
-        <div className="flex items-center gap-6 text-sm">
+        <div className="flex items-center gap-3 sm:gap-6 text-sm whitespace-nowrap">
           {landing ? (
             <>
               <a href="#how" className="hidden sm:inline text-muted hover:text-ink transition-colors">How it runs</a>
               <a href="#sample-report" className="hidden sm:inline text-muted hover:text-ink transition-colors">Report</a>
               <a href="https://github.com/Pskuntal1248/critique-agent" className="hidden sm:inline text-muted hover:text-ink transition-colors">GitHub</a>
-              <Link href="/" className="text-muted hover:text-ink transition-colors">Dashboard</Link>
+              <Link href="/dashboard" className="text-muted hover:text-ink transition-colors">Dashboard</Link>
             </>
           ) : (
             <>
-              <Link href="/" className="text-muted hover:text-ink transition-colors">Dashboard</Link>
+              <Link href="/dashboard" className="text-muted hover:text-ink transition-colors">Dashboard</Link>
               <a href={API_DOCS_URL} target="_blank" rel="noopener noreferrer" className="text-muted hover:text-ink transition-colors">API docs</a>
             </>
           )}
@@ -55,12 +55,12 @@ export function Navbar() {
             </span>
           ) : googleOn ? (
             <a href={GOOGLE_LOGIN_URL} className="text-muted hover:text-ink transition-colors">
-              Sign in with Google
+              Sign in<span className="hidden sm:inline"> with Google</span>
             </a>
           ) : null}
           <Link
             href="/tasks/new"
-            className="bg-accent hover:bg-accent-hover text-ink font-medium px-4 py-1.5 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+            className="bg-accent hover:bg-accent-hover text-ink font-medium px-3 sm:px-4 py-1.5 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
           >
             New task
           </Link>

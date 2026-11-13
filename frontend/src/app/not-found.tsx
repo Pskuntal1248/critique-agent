@@ -9,7 +9,7 @@ export default function NotFound() {
         The page you are looking for does not exist.
       </p>
       <Link
-        href="/"
+        href="/dashboard"
         className="text-sm font-medium text-ink underline decoration-ink decoration-2 underline-offset-4"
       >
         Back to dashboard

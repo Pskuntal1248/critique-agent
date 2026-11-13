@@ -47,7 +47,7 @@ export default function NewTaskPage() {
   return (
     <div className="max-w-2xl">
       <Link
-        href="/"
+        href="/dashboard"
         className="text-sm text-muted hover:text-ink transition-colors"
       >
         Back to dashboard
@@ -133,7 +133,7 @@ export default function NewTaskPage() {
             {loading ? 'Submitting…' : 'Start research'}
           </button>
           <Link
-            href="/"
+            href="/dashboard"
             className="px-6 py-2.5 text-sm font-medium text-ink border border-line hover:border-ink transition-colors"
           >
             Cancel

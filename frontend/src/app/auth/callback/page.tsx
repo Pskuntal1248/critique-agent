@@ -13,7 +13,7 @@ export default function AuthCallbackPage() {
     window.history.replaceState(null, '', '/auth/callback');
     if (token && token.startsWith('ca1.')) {
       setAuthToken(token);
-      window.location.replace('/');
+      window.location.replace('/dashboard');
     } else {
       setFailed(true);
     }
@@ -26,7 +26,7 @@ export default function AuthCallbackPage() {
         You can try again, or keep using Critique without an account. Runs started without signing in are
         kept for this browser session only.
       </p>
-      <Link href="/" className="underline">Back to dashboard</Link>
+      <Link href="/dashboard" className="underline">Back to dashboard</Link>
     </main>
   );
 }

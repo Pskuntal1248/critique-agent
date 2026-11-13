@@ -24,12 +24,12 @@ export function getAuthToken(): string | null {
 export function setAuthToken(token: string | null) {
   if (token) localStorage.setItem(AUTH_KEY, token); else localStorage.removeItem(AUTH_KEY);
 }
-export interface AuthConfig { google: boolean; external_database: boolean; }
+export interface AuthConfig { google: boolean; external_database: boolean; unreachable?: boolean; }
 export async function fetchAuthConfig(): Promise<AuthConfig> {
   try {
     const r = await fetch(`${API_BASE}/auth/config`);
-    return r.ok ? await r.json() : { google: false, external_database: false };
-  } catch { return { google: false, external_database: false }; }
+    return r.ok ? await r.json() : { google: false, external_database: false, unreachable: true };
+  } catch { return { google: false, external_database: false, unreachable: true }; }
 }
 /** Revoke the login on the server, then forget it here. */
 export async function signOut(everywhere = false): Promise<void> {

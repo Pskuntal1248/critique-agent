@@ -196,7 +196,7 @@ export function TaskDetailClient({ taskId }: Props) {
           {fetchError ?? 'Task not found'}
         </p>
         <Link
-          href="/"
+          href="/dashboard"
           className="text-sm font-medium text-ink underline decoration-ink decoration-2 underline-offset-4"
         >
           Back to dashboard
@@ -238,7 +238,7 @@ export function TaskDetailClient({ taskId }: Props) {
   return (
     <div className="space-y-8">
       <Link
-        href="/"
+        href="/dashboard"
         className="text-sm text-muted hover:text-ink transition-colors"
       >
         Back to dashboard

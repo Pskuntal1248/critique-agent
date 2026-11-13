@@ -1,8 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import './globals.css';
-import { Navbar } from '@/components/Navbar';
-import { DemoBanner } from '@/components/DemoBanner';
+import { AppShell } from '@/components/AppShell';
 
 export const metadata: Metadata = {
   title: 'Critique',
@@ -17,9 +16,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="bg-white text-ink min-h-screen antialiased font-sans">
-        <Navbar />
-        <DemoBanner />
-        <main className="max-w-6xl mx-auto px-6 py-10">{children}</main>
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );
